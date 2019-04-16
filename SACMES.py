@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk # or replace NavigationToolbar2Tk with NavigationToolbar2TkAgg
 import numpy as np
 import csv
 from pylab import *
@@ -244,7 +244,7 @@ class MainWindow(tk.Tk):
 
         #tk.Tk.__init__(self, *args, **kwargs)
         self.master = master
-        self.master.wm_title('Real-Time E-AB Sensing Platform')
+        self.master.wm_title('SACMES')
 
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
