@@ -1,9 +1,5 @@
-
-#####################################
-### SACMES Respository Program    ###
-### updated and pushed 04.06.2019 ###
-#####################################
-
+### 4.16.2019
+### Added checkpoint module to StartProgram in the StartPage frame
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
 
@@ -68,20 +64,14 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
 
-
-##############################################################
-######### Enter path of the folder you are analyzing #########
-##############################################################
-
 #-- file handle variable --#
-handle_variable = ''
-e_var = 'single'
+handle_variable = ''    # default handle variable is nothing
+e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
 PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
 #------------------------------------------------------------#
 
-InputFrequencies = [30,80,240]
-
+InputFrequencies = [30,80,240]  # frequencies initially displayed in Frequency Listbox
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
@@ -95,11 +85,7 @@ InputFrequencies = [30,80,240]
 ########################################
 sg_window = 5           ### Savitzky-Golay window (in mV range), must be odd number (increase signal:noise)
 sg_degree = 1           ### Savitzky-Golay polynomial degree
-polyfit_deg = 20        ### degree of polynomial fit
-
-#####################################################
-### Polynomial Regression Manipulation Parameters ###
-#####################################################
+polyfit_deg = 15        ### degree of polynomial fit
 
 #############################
 ### Checkpoint Parameters ###
@@ -107,15 +93,20 @@ polyfit_deg = 20        ### degree of polynomial fit
 key = 0                 ### SkeletonKey
 search_lim = 15         ### Search limit (sec)
 PoisonPill = False      ### Stop Animation variable
-FoundFilePath = False
-ExistVar = False
+FoundFilePath = False   ### If the user-inputted file is found
+ExistVar = False        ### If Checkpoints are not met ExistVar = True
 AlreadyInitiated = False    ### indicates if the user has already initiated analysis
-HighAlreadyReset = False
-LowAlreadyReset = False
-analysis_complete = False
+HighAlreadyReset = False    ### If data for high frequencies has been reset
+LowAlreadyReset = False      ### If data for low frequencies has been reset
+analysis_complete = False    ### If analysis has completed, begin PostAnalysis
 
+##################################
+### Data Extraction Parameters ###
+##################################
 delimiter = 1               ### default delimiter is a space; 2 = tab
-column_index = -2
+column_index = -2           ### column index for list_val.
+                              # list_val = column_index + 3
+                              # defauly column is the second (so index = 1)
 
 ######################################################
 ### Low frequency baseline manipulation Parameters ###
@@ -152,6 +143,84 @@ def _retrieve_file(file, electrode, frequency):
         filename2 = 'E%s_%s%sHz__%d.txt' % (electrode,handle_variable,frequency,file)
 
     return filename, filename2
+
+
+
+def ReadData(myfile, electrode):
+    global delimiter
+
+    ###############################################################
+    ### Get the index value of the data depending on if the     ###
+    ### electrodes are in the same .txt file or separate files  ###
+    ###############################################################
+    if e_var == 'single':
+        list_val = (electrode*3) + column_index
+    elif e_var == 'multiple':
+        list_val = column_index + 3
+
+    #####################
+    ### Read the data ###
+    #####################
+
+    #---Preallocate Potential and Current lists---#
+    with open(myfile,'r',encoding='utf-8') as mydata:
+        variables = len(mydata.readlines())
+        potentials = ['hold']*variables
+
+        ### key: potential; value: current ##
+        data_dict = {}
+
+        currents = [0]*variables
+
+    #---Extract data and dump into lists---#
+    with open(myfile,'r',encoding='utf-8') as mydata:
+        list_num = 0
+        for line in mydata:
+            check_split = line.split(delimiter)
+            check_split = check_split[0]
+            check_split = check_split.replace(',','')
+            try:
+                check_split = float(check_split)
+                check_split = True
+            except:
+                check_split = False
+
+            if check_split:
+                #---Currents---#
+                current_value = line.split(delimiter)
+                current_value = current_value[list_val]                      # list_val is the index value of the given electrode
+                current_value = current_value.replace(',','')
+                current_value = float(current_value)
+                current_value = current_value*1000000
+                currents[list_num] = current_value
+
+                #---Potentials---#
+                potential_value = line.split(delimiter)[0]
+                potential_value = potential_value.strip(',')
+                potential_value = float(potential_value)
+                potentials[list_num] = potential_value
+                data_dict.setdefault(potential_value, []).append(current_value)
+                list_num = list_num + 1
+
+    currents = [abs(value) for value in currents]
+
+    ### if there are 0's in the list (if the preallocation added to many)
+    ### then remove them
+    cut_value = 0
+    for value in potentials:
+        if value == 'hold':
+            cut_value += 1
+
+
+    if cut_value > 0:
+        potentials = potentials[:-cut_value]
+        currents = currents[:-cut_value]
+
+    #######################
+    ### Return the data ###
+    #######################
+    return potentials, currents, data_dict
+
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
@@ -220,7 +289,6 @@ class MainWindow(tk.Tk):
         baseline_adjustment_menu.add_command(label='Linear Fit', command = lambda: self.baseline_adjustment('Linear'))
         editmenu.add_cascade(label='Peak Height Extraction Settings', menu = baseline_adjustment_menu)
         menubar.add_cascade(label="Settings", menu=editmenu)
-
 
 
     def extraction_adjustment_frame(self):
@@ -713,8 +781,6 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         XaxisOptions = str((self.XaxisOptions.get(self.XaxisOptions.curselection())))
 
     #--- Electrode Selection ---#
-
-
     def ElectrodeCurSelect(self, evt):
         ###################################################
         ## electrode_list: list; ints                    ##
@@ -838,8 +904,6 @@ class InputFrame(tk.Frame):                         # first frame that is displa
                 if self.FrequencyListExists:
                     self.StartProgram()
 
-
-
                 else:
                     print('Could Not Start Program')
 
@@ -864,30 +928,34 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         elif delimiter == 2:
             delimiter = '   '
 
-        SaveVar = self.SaveVar.get()            # tracks if text file export has been activated
-        InjectionVar = self.InjectionVar.get()
         InjectionPoint = None                   # None variable if user has not selected an injection point
         InitializedNormalization = False        # tracks if the data has been normalized to the starting normalization point
         RatioMetricCheck = False                # tracks changes to high and low frequencies
         NormWarningExists = False               # tracks if a warning label for the normalization has been created
-        resize_interval = int(self.resize_entry.get())
+
         NormalizationPoint = 3
-        handle_variable = self.ImportFileEntry.get()
         starting_file = 1
+
+        SaveVar = self.SaveVar.get()            # tracks if text file export has been activated
+        InjectionVar = self.InjectionVar.get()  # tracks if injection was selected
+        resize_interval = int(self.resize_entry.get())      # interval at which xaxis of plots resizes
+        handle_variable = self.ImportFileEntry.get()        # string handle used for the input file
+
 
         #--- Y Limit Adjustment Parameters ---#
         min_norm = float(self.norm_data_min.get())          # normalization y limits
         max_norm = float(self.norm_data_max.get())
         min_raw = float(self.raw_data_min.get())            # raw data y limit adjustment variables
         max_raw = float(self.raw_data_max.get())
-        min_data = float(self.data_min.get())            # raw data y limit adjustment variables
+        min_data = float(self.data_min.get())               # raw data y limit adjustment variables
         max_data = float(self.data_max.get())
         ratio_min = float(self.KDM_min.get())               # KDM min and max
         ratio_max = float(self.KDM_max.get())
 
-        ### Interval ###
+        #############################################################
+        ### Interval at which the program searches for files (ms) ###
+        #############################################################
         Interval = self.Interval.get()
-
 
         ## set the resizeability of the container ##
         ## frame to handle PlotContainer resize   ##
@@ -909,43 +977,162 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         if not self.NoSelection:
             if FoundFilePath:
 
-                ##############################
-                ### Syncronization Classes ###
-                ##############################
-                wait_time = WaitTime()
-                track = Track()
+                checkpoint = CheckPoint(self.parent, self.controller)
 
-                ######################################################
-                ### Matplotlib Canvas, Figure, and Artist Creation ###
-                ######################################################
-                initialize = InitializeFigureCanvas()
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
-                #################################
-                ### Data Normalization Module ###
-                #################################
-                data_normalization = DataNormalization()
+####################################
+### Checkpoint TopLevel Instance ###
+####################################
+class CheckPoint():
+    def __init__(self, parent, controller):
+
+        #-- Check to see if the user's settings are accurate
+        #-- Search for the presence of the files. If they exist,
+        #-- initialize the functions and frames for Real Time Analysis
+
+        self.win = tk.Toplevel()
+        self.win.wm_title("CheckPoint")
+
+        title = tk.Label(self.win, text = 'Searching for files...',font=HUGE_FONT).grid(row=0,column=0,columnspan=2,pady=10,padx=10,sticky='news')
+
+        self.parent = parent
+        self.win.transient(self.parent)
+        self.win.attributes('-topmost', 'true')
+        self.controller = controller
+
+        row_value = 1
+        self.frame_dict = {}
+        self.label_dict = {}
+        self.already_verified = {}
+        for electrode in electrode_list:
+            electrode_label = tk.Label(self.win, text = 'E%s' % electrode,font=LARGE_FONT).grid(row=row_value,column=0,pady=5,padx=5)
+            frame = tk.Frame(self.win, relief='groove',bd=5)
+            frame.grid(row = row_value,column=1,pady=5,padx=5)
+            self.frame_dict[electrode] = frame
+            self.label_dict[electrode] = {}
+            self.already_verified[electrode] = {}
+            row_value += 1
+
+            column_value = 0
+            for frequency in frequency_list:
+                label = tk.Label(frame, text = '%sHz' % str(frequency), fg = 'red')
+                label.grid(row=0,column=column_value,padx=5,pady=5)
+                self.label_dict[electrode][frequency] = label
+                self.already_verified[electrode][frequency] = False
+                column_value += 1
 
 
-                ############################
-                ### Post Analysis Module ###
-                ############################
-                post_analysis = PostAnalysis(self.parent, self.controller)
-                ShowFrames[PostAnalysis] = post_analysis
-                post_analysis.grid(row=0, column=0, sticky = 'nsew')
+        self.stop = tk.Button(self.win, text = 'Stop', command = self.stop)
+        self.stop.grid(row=row_value, column=0,columnspan=2,pady=5)
+        self.StopSearch = False
 
-                ################################################
-                ### Initialize the RealTimeManipulationFrame ###
-                ################################################
-                frame = RealTimeManipulationFrame(container, self)
-                ShowFrames[RealTimeManipulationFrame] = frame
-                frame.grid(row=0, column=0, sticky='nsew')
+        self.num = 0
+        self.count = 0
+        self.analysis_count = 0
+        self.analysis_limit = electrode_count * len(frequency_list)
+        self.electrode_limit = electrode_count - 1
+        self.frequency_limit = len(frequency_list) - 1
 
 
-                #---When initliazed, raise the Start Page and the plot for electrode one---#
-                self.show_frame(RealTimeManipulationFrame)              # raises the frame for real-time data manipulation
-                self.show_plot(PlotValues[0])           # raises the figure for electrode 1
+        root.after(50,self.verify)
+
+    def verify(self):
+
+        self.electrode = electrode_list[self.num]
+
+        for frequency in frequency_list:
+
+            filename, filename2 = _retrieve_file(1,self.electrode,frequency)
+
+            myfile = mypath + filename               ### path of your file
+            myfile2 = mypath + filename2               ### path of your file
+
+            try:
+                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+
+            except:
+                try:
+                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    myfile = myfile2
+                except:
+                    mydata_bytes = 1
+
+            if mydata_bytes > 1000:
+                if not self.already_verified[self.electrode][frequency]:
+                    self.already_verified[self.electrode][frequency] = True
+                    if not self.StopSearch:
+                        self.label_dict[self.electrode][frequency]['fg'] = 'green'
+                        self.analysis_count += 1
+
+                if self.analysis_count == self.analysis_limit:
+                    print('Proceeding. Analysis Count = %d. Analysis Limit = %d' % (self.analysis_count, self.analysis_limit))
+                    root.after(10,self.proceed)
 
 
+        if self.num < self.electrode_limit:
+            self.num += 1
+        else:
+            self.num = 0
+
+        if self.analysis_count < self.analysis_limit:
+            if not self.StopSearch:
+                root.after(10,self.verify)
+
+    def proceed(self):
+        global wait_time, track, initialize, data_normalization, post_analysis
+
+        self.win.destroy()
+
+        ##############################
+        ### Syncronization Classes ###
+        ##############################
+        wait_time = WaitTime()
+        track = Track()
+
+        ######################################################
+        ### Matplotlib Canvas, Figure, and Artist Creation ###
+        ######################################################
+        initialize = InitializeFigureCanvas()
+
+        #################################
+        ### Data Normalization Module ###
+        #################################
+        data_normalization = DataNormalization()
+
+        ############################
+        ### Post Analysis Module ###
+        ############################
+        post_analysis = PostAnalysis(self.parent, self.controller)
+        ShowFrames[PostAnalysis] = post_analysis
+        post_analysis.grid(row=0, column=0, sticky = 'nsew')
+
+        ################################################
+        ### Initialize the RealTimeManipulationFrame ###
+        ################################################
+        frame = RealTimeManipulationFrame(container, self)
+        ShowFrames[RealTimeManipulationFrame] = frame
+        frame.grid(row=0, column=0, sticky='nsew')
+
+
+        #---When initliazed, raise the Start Page and the plot for electrode one---#
+        self.show_frame(RealTimeManipulationFrame)              # raises the frame for real-time data manipulation
+        self.show_plot(PlotValues[0])           # raises the figure for electrode 1
+
+
+    def stop(self):
+        self.StopSearch = True
+        self.win.destroy()
+
+    #--- Function to switch between visualization frames ---#
+    def show_plot(self, frame):
+        frame.tkraise()
+
+    def show_frame(self, cont):
+
+        frame = ShowFrames[cont]
+        frame.tkraise()
 
 
 #---------------------------------------------------------------------------------------------------------------------------#
@@ -1420,7 +1607,7 @@ class RealTimeManipulationFrame(tk.Frame):
             for figure in figures:
                 fig, self.ax = figure
                 electrode = electrode_list[fig_count]
-                anim.append(ElectrochemicalAnimation(fig, self.ax, fig_count, electrode, resize_interval = resize_interval))
+                anim.append(ElectrochemicalAnimation(fig, self.ax, electrode, resize_interval = resize_interval, fargs=None))
                 fig_count += 1
 
             AlreadyInitiated = True
@@ -1902,6 +2089,9 @@ class InitializeFigureCanvas():
                 print('Found File %s' % myfile2)
                 self.RunInitialization(myfile2,ax,subplot_count, electrode, freq)
 
+            else:
+                return False
+
 
         except:
             print('could not find file for electrode %d' % electrode)
@@ -1912,200 +2102,128 @@ class InitializeFigureCanvas():
     def RunInitialization(self, myfile, ax, subplot_count, electrode, freq):
         global high_xstart, high_xend, low_xstart, low_xend
 
+        try:
+            #########################
+            ### Retrieve the data ###
+            #########################
+            potentials, currents, data_dict = ReadData(myfile, electrode)
 
-        #########################
-        ### Retrieve the data ###
-        #########################
-        potentials, currents, data_dict = self.ReadData(myfile, electrode)
+            ##########################################
+            ### Set the x axes of the voltammogram ###
+            ##########################################
+            MIN_POTENTIAL = min(potentials)
+            MAX_POTENTIAL = max(potentials)
 
-        ##########################################
-        ### Set the x axes of the voltammogram ###
-        ##########################################
-        MIN_POTENTIAL = min(potentials)
-        MAX_POTENTIAL = max(potentials)
-
-        #-- Reverse voltammogram to match the 'Texas' convention --#
-        ax[0,subplot_count].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
-
-
-        #######################################
-        ### Get the high and low potentials ###
-        #######################################
-
-        if int(freq) > 50:
-
-            if not HighAlreadyReset:
-                high_xstart = max(potentials)
-                high_xend = min(potentials)
-
-            #-- set the local variables to the global ---#
-            xend = high_xend
-            xstart = high_xstart
-
-        elif int(freq) <= 50:
-
-            if not LowAlreadyReset:
-                low_xstart = max(potentials)
-                low_xend = min(potentials)
-
-            #-- set the local variables to the global ---#
-            xstart = low_xstart
-            xend = low_xend
+            #-- Reverse voltammogram to match the 'Texas' convention --#
+            ax[0,subplot_count].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
 
 
-        cut_value = 0
-        for value in potentials:
-            if value == 0:
-                cut_value += 1
+            #######################################
+            ### Get the high and low potentials ###
+            #######################################
+
+            if int(freq) > 50:
+
+                if not HighAlreadyReset:
+                    high_xstart = max(potentials)
+                    high_xend = min(potentials)
+
+                #-- set the local variables to the global ---#
+                xend = high_xend
+                xstart = high_xstart
+
+            elif int(freq) <= 50:
+
+                if not LowAlreadyReset:
+                    low_xstart = max(potentials)
+                    low_xend = min(potentials)
+
+                #-- set the local variables to the global ---#
+                xstart = low_xstart
+                xend = low_xend
 
 
-        if cut_value > 0:
-            potentials = potentials[:-cut_value]
-            currents = currents[:-cut_value]
-
-        adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
-
-        #########################################
-        ### Savitzky-Golay smoothing          ###
-        #########################################
-        smooth_currents = savgol_filter(currents, 15, sg_degree)
-        data_dict = dict(zip(potentials,smooth_currents))
+            cut_value = 0
+            for value in potentials:
+                if value == 0:
+                    cut_value += 1
 
 
-        #######################################
-        ### adjust the smooth currents to   ###
-        ### match the adjusted potentials   ###
-        #######################################
-        adjusted_currents = []
-        for potential in adjusted_potentials:
-            adjusted_currents.append(data_dict[potential])
+            if cut_value > 0:
+                potentials = potentials[:-cut_value]
+                currents = currents[:-cut_value]
 
-        ######################
-        ### Polynomial fit ###
-        ######################
-        polynomial_coeffs = np.polyfit(adjusted_potentials,adjusted_currents,polyfit_deg)
-        eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
-        regression_dict = dict(zip(eval_regress, adjusted_potentials))      # dictionary with current: potential
+            adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
 
-        fit_half = round(len(eval_regress)/2)
-        min1 = min(eval_regress[:-fit_half])
-        min2 = min(eval_regress[fit_half:])
-        max1 = max(eval_regress[:-fit_half])
-        max2 = max(eval_regress[fit_half:])
-
-        linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
-        linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
-
-        Peak_Height = max(max1,max2)-min(min1,min2)
+            #########################################
+            ### Savitzky-Golay smoothing          ###
+            #########################################
+            smooth_currents = savgol_filter(currents, 15, sg_degree)
+            data_dict = dict(zip(potentials,smooth_currents))
 
 
-        if SelectedOptions == 'Area Under the Curve':
-            AUC_index = 1
-            AUC = 0
+            #######################################
+            ### adjust the smooth currents to   ###
+            ### match the adjusted potentials   ###
+            #######################################
+            adjusted_currents = []
+            for potential in adjusted_potentials:
+                adjusted_currents.append(data_dict[potential])
 
-            AUC_potentials = [abs(potential) for potential in adjusted_potentials]
-            AUC_min = min(adjusted_currents)
-            AUC_currents = [Y - AUC_min for Y in adjusted_currents]
+            ######################
+            ### Polynomial fit ###
+            ######################
+            polynomial_coeffs = np.polyfit(adjusted_potentials,adjusted_currents,polyfit_deg)
+            eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
+            regression_dict = dict(zip(eval_regress, adjusted_potentials))      # dictionary with current: potential
 
-            while AUC_index <= len(AUC_currents) - 1:
-                AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
-                AUC_width = AUC_potentials[AUC_index] - AUC_potentials[AUC_index - 1]
-                AUC += (AUC_height * AUC_width)
-                AUC_index += 1
+            fit_half = round(len(eval_regress)/2)
+            min1 = min(eval_regress[:-fit_half])
+            min2 = min(eval_regress[fit_half:])
+            max1 = max(eval_regress[:-fit_half])
+            max2 = max(eval_regress[fit_half:])
 
-        #--- calculate the baseline current ---#
-        minimum_current = min(min1,min2)
-        maximum_current = max(max1,max2)
-        peak_current = maximum_current - minimum_current
+            linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
+            linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
 
-        if SelectedOptions == 'Peak Height Extraction':
-            ax[0,subplot_count].set_ylim(min_raw*minimum_current,max_raw*maximum_current)                    # voltammogram
-            ax[1,subplot_count].set_ylim(min_data*peak_current,max_data*peak_current)                    # raw peak height
-            ax[2,subplot_count].set_ylim(min_norm,max_norm)                                                 # normalized peak height
-
-        elif SelectedOptions == 'Area Under the Curve':
-            ax[0,subplot_count].set_ylim(0,max_raw*maximum_current)
-            ax[1,subplot_count].set_ylim(min_data*AUC,max_data*AUC)
-            ax[2,subplot_count].set_ylim(min_norm,max_norm)
+            Peak_Height = max(max1,max2)-min(min1,min2)
 
 
-        return
+            if SelectedOptions == 'Area Under the Curve':
+                AUC_index = 1
+                AUC = 0
+
+                AUC_potentials = [abs(potential) for potential in adjusted_potentials]
+                AUC_min = min(adjusted_currents)
+                AUC_currents = [Y - AUC_min for Y in adjusted_currents]
+
+                while AUC_index <= len(AUC_currents) - 1:
+                    AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
+                    AUC_width = AUC_potentials[AUC_index] - AUC_potentials[AUC_index - 1]
+                    AUC += (AUC_height * AUC_width)
+                    AUC_index += 1
+
+            #--- calculate the baseline current ---#
+            minimum_current = min(min1,min2)
+            maximum_current = max(max1,max2)
+            peak_current = maximum_current - minimum_current
+
+            if SelectedOptions == 'Peak Height Extraction':
+                ax[0,subplot_count].set_ylim(min_raw*minimum_current,max_raw*maximum_current)                    # voltammogram
+                ax[1,subplot_count].set_ylim(min_data*peak_current,max_data*peak_current)                    # raw peak height
+                ax[2,subplot_count].set_ylim(min_norm,max_norm)                                                 # normalized peak height
+
+            elif SelectedOptions == 'Area Under the Curve':
+                ax[0,subplot_count].set_ylim(0,max_raw*maximum_current)
+                ax[1,subplot_count].set_ylim(min_data*AUC,max_data*AUC)
+                ax[2,subplot_count].set_ylim(min_norm,max_norm)
 
 
+            return True
 
-    def ReadData(self, myfile, electrode):
-        global delimiter
+        except:
+            print('\n\nError in RunInitialization\n\n')
 
-        ###############################################################
-        ### Get the index value of the data depending on if the     ###
-        ### electrodes are in the same .txt file or separate files  ###
-        ###############################################################
-        if e_var == 'single':
-            list_val = (electrode*3) + column_index
-        elif e_var == 'multiple':
-            list_val = column_index + 3
-
-        #####################
-        ### Read the data ###
-        #####################
-
-        #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            variables = len(mydata.readlines())
-            potentials = [0]*variables
-
-            ### key: potential; value: current ##
-            data_dict = {}
-
-            currents = [0]*variables
-
-        #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            list_num = 0
-            for line in mydata:
-                check_split = line.split(delimiter)
-                check_split = check_split[0]
-                check_split = check_split.replace(',','')
-                try:
-                    check_split = float(check_split)
-                    check_split = True
-                except:
-                    check_split = False
-
-                if check_split:
-                    #---Currents---#
-                    current_value = line.split(delimiter)
-                    current_value = current_value[list_val]                      # list_val is the index value of the given electrode
-                    current_value = current_value.replace(',','')
-                    current_value = float(current_value)
-                    current_value = current_value*1000000
-                    currents[list_num] = current_value
-
-                    #---Potentials---#
-                    potential_value = line.split(delimiter)[0]
-                    potential_value = potential_value.strip(',')
-                    potential_value = float(potential_value)
-                    potentials[list_num] = potential_value
-                    data_dict.setdefault(potential_value, []).append(current_value)
-                    list_num = list_num + 1
-
-        currents = [abs(value) for value in currents]
-
-        ### if there are 0's in the list (if the preallocation added to many)
-        ### then remove them
-        cut_value = 0
-        for value in potentials:
-            if value == 0:
-                cut_value += 1
-
-
-        if cut_value > 0:
-            potentials = potentials[:-cut_value]
-
-        #######################
-        ### Return the data ###
-        #######################
-        return potentials, currents, data_dict
 
 
                                 #############################################################
@@ -2138,11 +2256,10 @@ class InitializeFigureCanvas():
 
 
 class ElectrochemicalAnimation():
-    def __init__(self, fig, ax, num, electrode, generator = None, func = None, resize_interval = None, fargs = None):
+    def __init__(self, fig, ax, electrode, generator = None, func = None, resize_interval = None, fargs = None):
 
-
-        self.num = num                                           # Electrode index value
         self.electrode = electrode                               # Electrode for this class instance
+        self.num = electrode_dict[self.electrode]                # Electrode index value
         self.spacer = ''.join(['       ']*self.electrode)        # Spacer value for print statements
         self.list_val = (self.electrode*3) + column_index        # Electrode column index value
         self.file = starting_file                                # Starting File
@@ -2170,9 +2287,9 @@ class ElectrochemicalAnimation():
         ## Set the animation function ##
         ################################
         if func is not None:
-            self.func = func
+            self._func = func
         else:
-            self.func = self._animate
+            self._func = self._animate
 
         if resize_interval is not None:
             self.resize_interval = resize_interval
@@ -2384,7 +2501,7 @@ class ElectrochemicalAnimation():
 
         else:
 
-            self._drawn_artists = self._animate(framedata, *self._args)
+            self._drawn_artists = self._func(framedata, *self._args)
 
             if self._drawn_artists is None:
                 raise RuntimeError('The animation function must return a '
@@ -2605,7 +2722,7 @@ class ElectrochemicalAnimation():
         ###################################
         ### Retrieve data from the File ###
         ###################################
-        potentials, currents, data_dict = self._read_raw_data(myfile, self.electrode)
+        potentials, currents, data_dict = ReadData(myfile, self.electrode)
         print(myfile)
 
         cut_value = 0
@@ -2623,12 +2740,17 @@ class ElectrochemicalAnimation():
         ################################################################
         adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
 
-
         #########################################
         ### Savitzky-Golay smoothing          ###
         #########################################
-        sg_potentials = [abs(potential) for potential in potentials]
-        sg_range = len([x for x in sg_potentials if x <= (sg_potentials[0]+(sg_window/1000))])
+        min_potential = min(potentials)             # find the min potential
+        sg_limit = sg_window/1000                   # mV --> V
+
+        # shift all values positive
+        sg_potentials = [x - min_potential for x in potentials]
+
+        # find how many fit within the sg potential window
+        sg_range = len([x for x in sg_potentials if x <= sg_limit])
 
         #--- Savitzky-golay Window must be greater than the range ---#
         if sg_range <= sg_degree:
@@ -2664,9 +2786,11 @@ class ElectrochemicalAnimation():
         eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
         regression_dict = dict(zip(eval_regress, adjusted_potentials))      # dictionary with current: potential
 
-        ########################################################################
-        ### Extract the local minima and maxima of the polynomial regression ###
-        ########################################################################
+        ###############################################
+        ### Absolute Max/Min Peak Height Extraction ###
+        ###############################################
+        #-- If the user selects 'Absolute Max/Min' in the 'Peak Height Extraction Settings'
+        #-- within the Settings toolbar this analysis method will be used for PHE
         fit_half = round(len(eval_regress)/2)
 
         min1 = min(eval_regress[:fit_half])
@@ -2674,6 +2798,12 @@ class ElectrochemicalAnimation():
         max1 = max(eval_regress[:fit_half])
         max2 = max(eval_regress[fit_half:])
 
+        #########################################
+        ### Linear Fit Peak Height Extraction ###
+        #########################################
+
+        #-- If the user selects 'Linear Fit' in the 'Peak Height Extraction Settings'
+        #-- within the Settings toolbar this analysis method will be used for PHE
         linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
         linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
 
@@ -2746,80 +2876,15 @@ class ElectrochemicalAnimation():
         return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress, regression_potentials, linear_approx
 
 
-    def _read_raw_data(self, myfile, electrode):
-
-        ###############################################################
-        ### Get the index value of the data depending on if the     ###
-        ### electrodes are in the same .txt file or separate files  ###
-        ###############################################################
-        if e_var == 'single':
-            list_val = (electrode*3) + column_index
-        elif e_var == 'multiple':
-            list_val = column_index + 3
-
-        #####################
-        ### Read the data ###
-        #####################
-
-        #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            variables = len(mydata.readlines())
-            potentials = [0]*variables
-
-            ### key: potential; value: current ##
-            data_dict = {}
-
-            currents = [0]*variables
-
-        #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            list_num = 0
-            for line in mydata:
-
-                check_split = line.split(delimiter)
-                check_split = check_split[0]
-                check_split = check_split.replace(',','')
-                try:
-                    check_split = float(check_split)
-                    check_split = True
-                except:
-                    check_split = False
-
-                if check_split:
-
-                    #---Currents---#
-                    current_value = line.split(delimiter)
-                    current_value = current_value[list_val]           # list_val is the index value of the given electrode
-                    current_value = current_value.replace(',','')
-                    current_value = float(current_value)
-                    current_value = current_value*1000000
-                    currents[list_num] = current_value
-
-                    #---Potentials---#
-                    potential_value = line.split(delimiter)[0]
-                    potential_value = potential_value.strip(',')
-                    potential_value = float(potential_value)
-                    potentials[list_num] = potential_value
-
-                    ### Pair the potential to the current
-                    data_dict.setdefault(potential_value, []).append(current_value)
-                    list_num = list_num + 1
-
-        currents = [abs(value) for value in currents]
-
-        #######################
-        ### Return the data ###
-        #######################
-        return potentials, currents, data_dict
-
-    def _animate(self, args):
+    def _animate(self, framedata, *args):
 
         if key > 0:
             while True:
 
-                potentials, adjusted_potentials, smooth_currents, adjusted_currents, regression, regression_potentials, linear_fit = args
+                potentials, adjusted_potentials, smooth_currents, adjusted_currents, regression, regression_potentials, linear_fit = framedata
 
                 print('\n%s%d: %dHz\n%s_animate' % (self.spacer,self.electrode,frequency_list[self.count],self.spacer))
+
 
                 #############################################################
                 ### Acquire the current frequency and get the xstart/xend ###
@@ -2905,7 +2970,7 @@ class ElectrochemicalAnimation():
 
         else:
             file = 1
-            EmptyPlots = args
+            EmptyPlots = framedata
             time.sleep(0.1)
             print('\n Yielding Empty Plots in Animation \n')
             return EmptyPlots
@@ -2940,9 +3005,9 @@ class ElectrochemicalAnimation():
 
         return NormalizedRatio, KDM
 
-    def _ratiometric_animation(self, args):
+    def _ratiometric_animation(self, framedata, *args):
 
-        NormalizedRatio, KDM = args
+        NormalizedRatio, KDM = framedata
 
         plots = ratiometric_plots[self.num]
 
@@ -3472,7 +3537,6 @@ class PostAnalysis(tk.Frame):
 
         self.electrode_list = [self.ElectrodeCount.get(idx) for idx in self.ElectrodeCount.curselection()]
         self.electrode_list = [int(electrode) for electrode in self.electrode_list]
-        print('ECS',self.electrode_list)
         electrode_count = len(electrode_list)
 
         if electrode_count is 0:
@@ -3488,7 +3552,6 @@ class PostAnalysis(tk.Frame):
         global frequency_list, frequency_dict, LowFrequency, HighFrequency
 
         self.frequency_list = [self.FrequencyList.get(idx) for idx in self.FrequencyList.curselection()]
-        print('F C S',self.frequency_list)
 
         if len(frequency_list) is not 0:
 
