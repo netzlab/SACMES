@@ -1,5 +1,4 @@
-### 4.16.2019
-### Added checkpoint module to StartProgram in the StartPage frame
+
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
 
@@ -38,7 +37,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk # or replace NavigationToolbar2Tk with NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import numpy as np
 import csv
 from pylab import *
@@ -244,7 +243,7 @@ class MainWindow(tk.Tk):
 
         #tk.Tk.__init__(self, *args, **kwargs)
         self.master = master
-        self.master.wm_title('SACMES')
+        self.master.wm_title('Real-Time E-AB Sensing Platform')
 
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
@@ -809,7 +808,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
     #--- Frequency Selection ---#
     def FrequencyCurSelect(self, evt):
-        global frequency_list, frequency_dict, LowFrequency, HighFrequency
+        global frequency_list, frequency_dict, LowFrequency, HighFrequency, HighLowList
 
         frequency_list = [self.FrequencyList.get(idx) for idx in self.FrequencyList.curselection()]
 
@@ -824,6 +823,9 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
             LowFrequency = min(frequency_list)          # Initial Low Frequency for KDM/Ratiometric analysis
             HighFrequency = max(frequency_list)         # Initial High Frequency for KDM/Ratiometric analysis
+
+            HighLowList['High'] = HighFrequency
+            HighLowList['Low'] = LowFrequency
 
             #--- Frequency Dictionary ---#
             frequency_dict = {}
@@ -1469,6 +1471,8 @@ class RealTimeManipulationFrame(tk.Frame):
 
         HighFrequency = int(HighFrequencyEntry.get())
         LowFrequency = int(LowFrequencyEntry.get())
+        HighLowList['High'] = HighFrequency
+        HighLowList['Low'] = LowFrequency
 
         LowFrequencyOffset = float(self.LowFrequencyOffset.get())
         LowFrequencySlope = float(self.LowFrequencySlope.get())
@@ -1762,11 +1766,11 @@ class InitializeFigureCanvas():
         for num in range(electrode_count):
             data_list[num] = [0]*self.length                        # a data list for each eletrode
             normalized_data_list[num] = [0]*self.length
-            offset_normalized_data_list[num] = [0]*self.length
+            offset_normalized_data_list[num] = [0]*numFiles
             for count in range(self.length):                        # a data list for each frequency for that electrode
                 data_list[num][count] = [0]*numFiles                # use [0]*numFiles to preallocate list space
                 normalized_data_list[num][count] = [0]*numFiles
-                offset_normalized_data_list[num][count] = [0]*numFiles
+
 
         for num in range(electrode_count):
             normalized_ratiometric_data_list.append([])
@@ -1854,18 +1858,6 @@ class InitializeFigureCanvas():
             fig, ax = plt.subplots(nrows=3,ncols=length,squeeze=False,figsize=(9,4.5))    ## figsize=(width, height)
             plt.subplots_adjust(bottom=0.1,hspace=0.6,wspace=0.3)         ### adjust the spacing between subplots
 
-
-            ###############################################
-            ### Lists for low frequency baseline offset ###
-            ###############################################
-            #-- append a list for each electrode --#
-            list = []
-            for frequency in frequency_list:
-                #-- for every low frequency, add a list to the electrode list --#
-                if frequency <= 50:
-                    list.append([0]*numFiles)
-
-            offset_normalized_data_list.append(list)
 
             #---Set the electrode index value---#
             if e_var == 'single':
@@ -2914,8 +2906,8 @@ class ElectrochemicalAnimation():
 
                 data = data_list[self.num][self.count][:len(self.file_list)]                     # 'num' is the electrode index value
 
-                if frequency_list[self.count] <= 50:
-                    NormalizedDataList = offset_normalized_data_list[self.num][self.count][:len(self.file_list)]
+                if frequency_list[self.count] == HighLowList['Low']:
+                    NormalizedDataList = offset_normalized_data_list[self.num][:len(self.file_list)]
                 else:
                     NormalizedDataList = normalized_data_list[self.num][self.count][:len(self.file_list)]
 
@@ -2989,15 +2981,10 @@ class ElectrochemicalAnimation():
         LowCount = frequency_dict[LowFrequency]
 
         HighPoint = normalized_data_list[self.num][HighCount][self.index]
-
-        if LowFrequency <= 50:
-            LowPoint = offset_normalized_data_list[self.num][LowCount][self.index]
-        else:
-            LowPoint = normalized_data_list[self.num][LowCount][self.index]
+        LowPoint = offset_normalized_data_list[self.num][self.index]
 
         NormalizedRatio = HighPoint/LowPoint
         KDM = (HighPoint - LowPoint) + 1
-
 
         #-- save the data to global lists --#
         normalized_ratiometric_data_list[self.num].append(NormalizedRatio)
@@ -3105,12 +3092,13 @@ class DataNormalization():
         ## Check the frequency and apply the baseline offset ##
         #######################################################
         frequency = frequency_list[count]
-        if frequency <= 50:
+        if frequency == HighLowList['Low']:
             if XaxisOptions == 'Experiment Time':
                 Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
             elif XaxisOptions == 'File Number':
                 Offset = (file*LowFrequencySlope) + LowFrequencyOffset
-        elif frequency > 50:
+            print('\n\nOffset =', Offset,'\n')
+        else:
             Offset = 0
 
         NormalizationIndex = int(NormalizationPoint) - 1
@@ -3135,8 +3123,8 @@ class DataNormalization():
             ###########################################################################
             ### If this is a low frequency, apply the offset to the normalized data ###
             ###########################################################################
-            if frequency_list[count] <= 50:
-                offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+            if frequency == HighLowList['Low']:
+                offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
         #######################################################################
         ### Elif the chosen normalization point is greater than the current ###
@@ -3153,8 +3141,8 @@ class DataNormalization():
             ###########################################################################
             ### If this is a low frequency, apply the offset to the normalized data ###
             ###########################################################################
-            if frequency_list[count] <= 50:
-                offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+            if frequency_list[count] == HighLowList['Low']:
+                offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
 
         #--- Else, if the initial normalization point has not yet been reached, normalize to the first file ---#
@@ -3164,8 +3152,8 @@ class DataNormalization():
             ###########################################################################
             ### If this is a low frequency, apply the offset to the normalized data ###
             ###########################################################################
-            if frequency_list[count] <= 50:
-                offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+            if frequency_list[count] == HighLowList['Low']:
+                offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
     ################################################################
     ### If the normalization point has been changed, renormalize ###
@@ -3188,15 +3176,21 @@ class DataNormalization():
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
-                    if frequency_list[count] <= 50:
+                    if frequency_list[count] == HighLowList['Low']:
                         for index in range(len(file_list)):
+
 
                             ##########################
                             ## Calculate the offset ##
                             ##########################
                             sample = sample_list[index]
-                            Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
-                            offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+                            file = file_list[index]
+                            if XaxisOptions == 'Experiment Time':
+                                Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                            elif XaxisOptions == 'File Number':
+                                Offset = (file*LowFrequencySlope) + LowFrequencyOffset
+
+                            offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
 
             ################################################
@@ -3236,16 +3230,21 @@ class DataNormalization():
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
-                    if frequency_list[count] <= 50:
+                    if frequency_list[count] == HighLowList['Low']:
                         for index in range(len(file_list)):
 
                             ##########################
                             ## Calculate the offset ##
                             ##########################
                             sample = sample_list[index]
-                            Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                            file = index + 1
 
-                            offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+                            if XaxisOptions == 'Experiment Time':
+                                Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                            elif XaxisOptions == 'File Number':
+                                Offset = (file*LowFrequencySlope) + LowFrequencyOffset
+
+                            offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
             ################################################
             ## Using the newly normalized data, calculate ##
@@ -3279,18 +3278,22 @@ class DataNormalization():
         for frequency in frequency_list:
 
             #-- Only apply the offset if the frequency is below 50 Hz --#
-            if frequency <= 50:
+            if frequency == HighLowList['Low']:
                 count = frequency_dict[frequency]
 
                 #-- Apply the offset to every file --#
-                for file in file_list:
-                    index = file - 1
+                for index in range(len(file_list)):
 
                     sample = sample_list[index]
-                    Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                    file = file_list[index]
+
+                    if XaxisOptions == 'Experiment Time':
+                        Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                    elif XaxisOptions == 'File Number':
+                        Offset = (file*LowFrequencySlope) + LowFrequencyOffset
 
                     for num in range(electrode_count):
-                        offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + float(Offset)
+                        offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + float(Offset)
 
         ####################################################
         ### Readjust KDM with newly adjusted frequencies ###
@@ -3301,19 +3304,9 @@ class DataNormalization():
 
                 # grab the index value for the current high and low frequencies used for ratiometric analysis #
                 HighCount = frequency_dict[HighFrequency]
-                LowCount = frequency_dict[LowFrequency]
 
-
-                #-- normalized ratiometric analysis --#
-                if HighFrequency <= 50:
-                    HighPoint = offset_normalized_data_list[num][HighCount][index]
-                else:
-                    HighPoint = normalized_data_list[num][HighCount][index]
-
-                if LowFrequency <= 50:
-                    LowPoint = offset_normalized_data_list[num][LowCount][index]
-                else:
-                    LowPoint = normalized_data_list[num][LowCount][index]
+                HighPoint = normalized_data_list[num][HighCount][index]
+                LowPoint = offset_normalized_data_list[num][index]
 
                 NormalizedDataRatio = HighPoint/LowPoint
                 normalized_ratiometric_data_list[num][index] = NormalizedDataRatio
@@ -3594,16 +3587,21 @@ class PostAnalysis(tk.Frame):
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
-                    if frequency_list[count] <= 50:
+                    if frequency_list[count] == HighLowList['Low']:
                         for index in range(numFiles):
 
                             ##########################
                             ## Calculate the offset ##
                             ##########################
                             sample = sample_list[index]
-                            Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                            file = file_list[index]
 
-                            offset_normalized_data_list[num][count][index] = normalized_data_list[num][count][index] + Offset
+                            if XaxisOptions == 'Experiment Time':
+                                Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
+                            elif XaxisOptions == 'File Number':
+                                Offset = (file*LowFrequencySlope) + LowFrequencyOffset
+
+                            offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
         if RatioMetricCheck:
             data_normalization.ResetRatiometricData()
@@ -3653,8 +3651,8 @@ class PostAnalysis(tk.Frame):
 
                 data = data_list[num][count]                     # 'num' is the electrode index value
 
-                if frequency_list[count] <= 50:
-                    NormalizedDataList = offset_normalized_data_list[num][count]
+                if frequency_list[count] == HighLowList['Low']:
+                    NormalizedDataList = offset_normalized_data_list[num]
                 else:
                     NormalizedDataList = normalized_data_list[num][count]
 
@@ -4056,14 +4054,18 @@ class TextFileExport():
         #--- Peak Height/AUC Data Normalization ---#
         for count in range(len(frequency_list)):
             for num in range(electrode_count):
-                list.append(normalized_data_list[num][count][index])
+                if frequency_list[count] == HighLowList['Low']:
+                    list.append(offset_normalized_data_list[num][index])
+                else:
+                    list.append(normalized_data_list[num][count][index])
+
 
         #--- Average normalized data across all electrodes for each frequency ---#
         for count in range(len(frequency_list)):
             NormalizedFrequencyCurrents = []
             for num in range(electrode_count):
-                if frequency_list[count] <= 50:
-                    NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][count][index])
+                if frequency_list[count] == HighLowList['Low']:
+                    NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
                 else:
                     NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
@@ -4189,8 +4191,11 @@ class TextFileExport():
                     for electrode in self.electrode_list:
                         num = electrode_dict[electrode]
 
-                        list.append(normalized_data_list[num][count][index])
-                        NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+                        if frequency == HighLowList['Low']:
+                            list.append(offset_normalized_data_list[num][index])
+                        else:
+                            list.append(normalized_data_list[num][count][index])
+
 
                 #--- Data Normalization ---#
                 for frequency in self.frequency_list:
@@ -4198,7 +4203,11 @@ class TextFileExport():
                     NormalizedFrequencyCurrents = []
                     for electrode in self.electrode_list:
                         num = electrode_dict[electrode]
-                        NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+
+                        if frequency == HighLowList['Low']:
+                            NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
+                        else:
+                            NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
                     AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
                     list.append(AverageNorm)
@@ -4209,7 +4218,11 @@ class TextFileExport():
                     NormalizedFrequencyCurrents = []
                     for electrode in self.electrode_list:
                         num = electrode_dict[electrode]
-                        NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+
+                        if frequency == HighLowList['Low']:
+                            NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
+                        else:
+                            NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
                     AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
                     STDList = [(X - AverageNorm)**2 for X in NormalizedFrequencyCurrents]
