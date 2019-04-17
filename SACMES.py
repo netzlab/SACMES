@@ -243,7 +243,7 @@ class MainWindow(tk.Tk):
 
         #tk.Tk.__init__(self, *args, **kwargs)
         self.master = master
-        self.master.wm_title('Real-Time E-AB Sensing Platform')
+        self.master.wm_title('SACMES')
 
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
