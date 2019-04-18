@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import numpy as np
 import csv
 from pylab import *
@@ -1869,9 +1869,9 @@ class InitializeFigureCanvas():
             ### Set axis labels ###
             #######################
 
-            ax[0,0].set_ylabel('Current (µA)',fontweight='bold')
+            ax[0,0].set_ylabel('Current\n(µA)',fontweight='bold')
             if SelectedOptions == 'Peak Height Extraction':
-                ax[1,0].set_ylabel('Peak Height (µA)',fontweight='bold')
+                ax[1,0].set_ylabel('Peak Height\n(µA)',fontweight='bold')
             elif SelectedOptions == 'Area Under the Curve':
                 ax[1,0].set_ylabel('AUC (a.u.)',fontweight='bold')
             ax[2,0].set_ylabel('Normalized', fontweight='bold')
@@ -1990,8 +1990,8 @@ class InitializeFigureCanvas():
             ## Set the X and Y axes for the Ratriometric  ##
             ## Plots (KDM and Norm Ratio)                 ##
             ################################################
-            axes[0,0].set_ylabel('% Signal')
-            axes[0,1].set_ylabel('% Signal')
+            axes[0,0].set_ylabel('% Signal', fontweight='bold')
+            axes[0,1].set_ylabel('% Signal', fontweight='bold')
 
 
             if XaxisOptions == 'Experiment Time':
@@ -3666,9 +3666,9 @@ class PostAnalysis(tk.Frame):
                 #####################
                 ## Set the Y Label ##
                 #####################
-                ax[0,0].set_ylabel('Current (µA)',fontweight='bold')
+                ax[0,0].set_ylabel('Current\n(µA)',fontweight='bold')
                 if SelectedOptions == 'Peak Height Extraction':
-                    ax[1,0].set_ylabel('Peak Height (µA)',fontweight='bold')
+                    ax[1,0].set_ylabel('Peak Height\n(µA)',fontweight='bold')
                 elif SelectedOptions == 'Area Under the Curve':
                     ax[1,0].set_ylabel('AUC (a.u.)',fontweight='bold')
                 ax[2,0].set_ylabel('Normalized', fontweight='bold')
@@ -3681,9 +3681,18 @@ class PostAnalysis(tk.Frame):
                     norm = [X*100 for X in normalized_ratiometric_data_list[num]]
                     KDM = [X*100 for X in KDM_list[num]]
 
+                    #-- Clear the Plots --#
                     ratio_ax[0,0].clear()
-                    ratio_ax[0,0].plot(Xaxis,norm,'ro',markersize=1)            # normalized ratio of high and low freq's
                     ratio_ax[0,1].clear()
+
+                    #-- Redraw the titles --#
+                    ratio_ax[0,0].set_title('Normalized Ratio')
+                    ratio_ax[0,1].set_title('KDM')
+                    ratio_ax[0,0].set_ylabel('% Signal', fontweight='bold')
+                    ratio_ax[0,1].set_ylabel('% Signal', fontweight='bold')
+
+                    #-- Plot the Data --#
+                    ratio_ax[0,0].plot(Xaxis,norm,'ro',markersize=1)            # normalized ratio of high and low freq'
                     ratio_ax[0,1].plot(Xaxis,KDM,'ro',markersize=1)
 
                 subplot_count += 1
