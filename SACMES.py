@@ -1069,7 +1069,6 @@ class CheckPoint():
                         self.analysis_count += 1
 
                 if self.analysis_count == self.analysis_limit:
-                    print('Proceeding. Analysis Count = %d. Analysis Limit = %d' % (self.analysis_count, self.analysis_limit))
                     root.after(10,self.proceed)
 
 
@@ -3101,7 +3100,6 @@ class DataNormalization():
                 Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
             elif XaxisOptions == 'File Number':
                 Offset = (file*LowFrequencySlope) + LowFrequencyOffset
-            print('\n\nOffset =', Offset,'\n')
         else:
             Offset = 0
 
@@ -3122,10 +3120,7 @@ class DataNormalization():
             ### to this point, continue to normalize the data for   ###
             ### the current file to the normalization point         ###
             ###########################################################
-            print('Index %d' % index)
             normalized_data_list[num][count][index] = data/data_list[num][count][NormalizationIndex]
-            print('Normalize. Reg data list:',data_list[num][count],'\n',len(data_list[num][count]))
-            print('Normalize',normalized_data_list[num][count],'\n',len(normalized_data_list[num][count]))
 
             ###########################################################################
             ### If this is a low frequency, apply the offset to the normalized data ###
@@ -3179,8 +3174,7 @@ class DataNormalization():
                 for count in range(len(frequency_list)):
 
                     normalized_data_list[num][count][:index] = [(idx/data_list[num][count][NormalizationIndex]) for idx in data_list[num][count][:index]]
-                    print('Norm:',normalized_data_list[num][count][:index],len(normalized_data_list[num][count][:index]))
-                    print('Total Norm:',normalized_data_list[num][count],len(normalized_data_list[num][count]),'\n\n')
+
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
@@ -3199,8 +3193,6 @@ class DataNormalization():
                                 Offset = (file*LowFrequencySlope) + LowFrequencyOffset
 
                             offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
-
-                print('\n\nRenormalize Data 1: Offset = ',offset_normalized_data_list[num],'length = %d\n\n' % len(offset_normalized_data_list[num]))
 
             ################################################
             ### Analyze KDM using new normalization data ###
@@ -3235,8 +3227,6 @@ class DataNormalization():
                     ## Renormalize the data ##
                     ##########################
                     normalized_data_list[num][count][:index] = [idx/data_list[num][count][NormalizationIndex] for idx in data_list[num][count][:index]]
-                    print('\n\nRenormalize Data 2: Normalized = ',normalized_data_list[num][count],'length = %d\n\n' % len(normalized_data_list[num][count]))
-                    print(len(normalized_data_list[num][count][:index]))
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
@@ -3248,7 +3238,6 @@ class DataNormalization():
                             ##########################
                             sample = sample_list[index]
                             file = index + 1
-                            print('File %d' % file)
 
                             if XaxisOptions == 'Experiment Time':
                                 Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
@@ -3256,7 +3245,6 @@ class DataNormalization():
                                 Offset = (file*LowFrequencySlope) + LowFrequencyOffset
 
                             offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
-                print('\n\nRenormalize Data 2: Offset = ',offset_normalized_data_list[num],'length = %d\n\n' % len(offset_normalized_data_list[num]))
 
             ################################################
             ## Using the newly normalized data, calculate ##
@@ -3664,15 +3652,9 @@ class PostAnalysis(tk.Frame):
                 data = data_list[num][count]                     # 'num' is the electrode index value
 
                 if frequency_list[count] == HighLowList['Low']:
-                    print('Redrawing Low Frequency')
                     NormalizedDataList = offset_normalized_data_list[num]
-                    print(NormalizedDataList)
-                    print(len(NormalizedDataList))
                 else:
                     NormalizedDataList = normalized_data_list[num][count]
-                    print('Redrawing High')
-                    print(NormalizedDataList)
-                    print(len(NormalizedDataList))
 
                 ### Draw new data ###
                 ax[1,subplot_count].clear()
@@ -4099,7 +4081,6 @@ class TextFileExport():
             #-- calculate the average
             average = 0     # start at 0
             for item in NormalizedFrequencyCurrents:
-                print(item)
                 average += item            # add every item
             average = average/electrode_count
             AverageNorm = sum(NormalizedFrequencyCurrents)/electrode_count
