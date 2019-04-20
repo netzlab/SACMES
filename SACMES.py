@@ -1469,10 +1469,8 @@ class RealTimeManipulationFrame(tk.Frame):
     def RealTimeKDM(self):
         global HighFrequency, LowFrequencyOffset, LowFrequencySlope, LowFrequency, HighLowList, LowFrequencyEntry, HighFrequencyEntry, ExistVar, WrongFrequencyLabel, RatioMetricCheck
 
-        HighFrequency = int(HighFrequencyEntry.get())
-        LowFrequency = int(LowFrequencyEntry.get())
-        HighLowList['High'] = HighFrequency
-        HighLowList['Low'] = LowFrequency
+        TempHighFrequency = int(HighFrequencyEntry.get())
+        TempLowFrequency = int(LowFrequencyEntry.get())
 
         LowFrequencyOffset = float(self.LowFrequencyOffset.get())
         LowFrequencySlope = float(self.LowFrequencySlope.get())
@@ -1515,8 +1513,8 @@ class RealTimeManipulationFrame(tk.Frame):
 
         #--- else, if they both exist, remove the warning label ---#
         else:
-            HighLowList['High'] = HighFrequency
-            HighLowList['Low'] = LowFrequency
+            HighLowList['High'] = TempHighFrequency
+            HighLowList['Low'] = TempLowFrequency
 
             data_normalization.ResetRatiometricData()
 
@@ -2733,15 +2731,16 @@ class ElectrochemicalAnimation():
         adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
 
         #########################################
-        ### Savitzky-Golay smoothing          ###
+        ### Savitzky-Golay Smoothing          ###
         #########################################
-        min_potential = min(potentials)             # find the min potential
-        sg_limit = sg_window/1000                   # mV --> V
+        min_potential = min(potentials)            # find the min potential
+        sg_limit = sg_window/1000                  # mV --> V
 
         # shift all values positive
         sg_potentials = [x - min_potential for x in potentials]
 
-        # find how many fit within the sg potential window
+        # find how many points fit within the sg potential window
+        # this will be how many points are included in the rolling average
         sg_range = len([x for x in sg_potentials if x <= sg_limit])
 
         #--- Savitzky-golay Window must be greater than the range ---#
@@ -2751,13 +2750,16 @@ class ElectrochemicalAnimation():
         #-- if the range is even, make it odd --#
         if sg_range % 2 == 0:
             sg_range = sg_range + 1
+
+        # Apply the smoothing function and create a dictionary pairing
+        # each potential with its corresponding current
         try:
             smooth_currents = savgol_filter(currents, sg_range, sg_degree)
             data_dict = dict(zip(potentials,smooth_currents))
-
         except ValueError:
             smooth_currents = savgol_filter(currents, 15, sg_degree)
             data_dict = dict(zip(potentials,smooth_currents))
+
 
         #######################################
         ### adjust the smooth currents to   ###
@@ -2919,7 +2921,9 @@ class ElectrochemicalAnimation():
                     plots[1].set_data(adjusted_potentials, regression)
                     plots[2].set_data(Xaxis,data)                    # Raw Data
                     plots[4].set_data(Xaxis,NormalizedDataList)           # Norm Data
-                    plots[7].set_data(regression_potentials, linear_fit)
+
+                    if PHE_method == 'Linear Fit':
+                        plots[7].set_data(regression_potentials, linear_fit)
 
                 ##########################################################
                 ### If an Injection Point has been set, visualize the  ###
@@ -3118,7 +3122,10 @@ class DataNormalization():
             ### to this point, continue to normalize the data for   ###
             ### the current file to the normalization point         ###
             ###########################################################
+            print('Index %d' % index)
             normalized_data_list[num][count][index] = data/data_list[num][count][NormalizationIndex]
+            print('Normalize. Reg data list:',data_list[num][count],'\n',len(data_list[num][count]))
+            print('Normalize',normalized_data_list[num][count],'\n',len(normalized_data_list[num][count]))
 
             ###########################################################################
             ### If this is a low frequency, apply the offset to the normalized data ###
@@ -3172,7 +3179,8 @@ class DataNormalization():
                 for count in range(len(frequency_list)):
 
                     normalized_data_list[num][count][:index] = [(idx/data_list[num][count][NormalizationIndex]) for idx in data_list[num][count][:index]]
-
+                    print('Norm:',normalized_data_list[num][count][:index],len(normalized_data_list[num][count][:index]))
+                    print('Total Norm:',normalized_data_list[num][count],len(normalized_data_list[num][count]),'\n\n')
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
@@ -3192,6 +3200,7 @@ class DataNormalization():
 
                             offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
+                print('\n\nRenormalize Data 1: Offset = ',offset_normalized_data_list[num],'length = %d\n\n' % len(offset_normalized_data_list[num]))
 
             ################################################
             ### Analyze KDM using new normalization data ###
@@ -3217,7 +3226,7 @@ class DataNormalization():
         ## greater than the new point, renormalize the data to the new point   ##
         #########################################################################
         if NormalizationWaiting:
-            index = file
+            index = file - 1
             NormalizationIndex = NormalizationPoint - 1
             for num in range(electrode_count):
                 for count in range(len(frequency_list)):
@@ -3225,8 +3234,9 @@ class DataNormalization():
                     ##########################
                     ## Renormalize the data ##
                     ##########################
-                    normalized_data_list[num][count][:index] = [idx/data_list[num][count][NormalizationIndex] for idx in data_list[num][count]]
-
+                    normalized_data_list[num][count][:index] = [idx/data_list[num][count][NormalizationIndex] for idx in data_list[num][count][:index]]
+                    print('\n\nRenormalize Data 2: Normalized = ',normalized_data_list[num][count],'length = %d\n\n' % len(normalized_data_list[num][count]))
+                    print(len(normalized_data_list[num][count][:index]))
                     #############################################################
                     ## If the frequency is below 50Hz, add the baseline Offset ##
                     #############################################################
@@ -3238,6 +3248,7 @@ class DataNormalization():
                             ##########################
                             sample = sample_list[index]
                             file = index + 1
+                            print('File %d' % file)
 
                             if XaxisOptions == 'Experiment Time':
                                 Offset = (sample*LowFrequencySlope) + LowFrequencyOffset
@@ -3245,6 +3256,7 @@ class DataNormalization():
                                 Offset = (file*LowFrequencySlope) + LowFrequencyOffset
 
                             offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
+                print('\n\nRenormalize Data 2: Offset = ',offset_normalized_data_list[num],'length = %d\n\n' % len(offset_normalized_data_list[num]))
 
             ################################################
             ## Using the newly normalized data, calculate ##
@@ -3652,9 +3664,15 @@ class PostAnalysis(tk.Frame):
                 data = data_list[num][count]                     # 'num' is the electrode index value
 
                 if frequency_list[count] == HighLowList['Low']:
+                    print('Redrawing Low Frequency')
                     NormalizedDataList = offset_normalized_data_list[num]
+                    print(NormalizedDataList)
+                    print(len(NormalizedDataList))
                 else:
                     NormalizedDataList = normalized_data_list[num][count]
+                    print('Redrawing High')
+                    print(NormalizedDataList)
+                    print(len(NormalizedDataList))
 
                 ### Draw new data ###
                 ax[1,subplot_count].clear()
