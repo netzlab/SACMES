@@ -283,10 +283,6 @@ class MainWindow(tk.Tk):
         self.delimiter_value = IntVar()
         self.delimiter_value.set(1)
 
-        baseline_adjustment_menu = Menu(editmenu)
-        baseline_adjustment_menu.add_command(label='Absolute Max/Min', command = lambda: self.baseline_adjustment('Abs'))
-        baseline_adjustment_menu.add_command(label='Linear Fit', command = lambda: self.baseline_adjustment('Linear'))
-        editmenu.add_cascade(label='Peak Height Extraction Settings', menu = baseline_adjustment_menu)
         menubar.add_cascade(label="Settings", menu=editmenu)
 
 
@@ -326,14 +322,6 @@ class MainWindow(tk.Tk):
 
         column_index = int(self.list_val_entry.get())
         column_index = column_index - 4
-
-    def baseline_adjustment(self, method):
-        global PHE_method
-
-        if method == 'Abs':
-            PHE_method = 'Abs'
-        elif method == 'Linear':
-            PHE_method = 'Linear'
 
     def show_frame(self, cont):
 
@@ -2791,40 +2779,13 @@ class ElectrochemicalAnimation():
         max1 = max(eval_regress[:fit_half])
         max2 = max(eval_regress[fit_half:])
 
-        #########################################
-        ### Linear Fit Peak Height Extraction ###
-        #########################################
-
-        #-- If the user selects 'Linear Fit' in the 'Peak Height Extraction Settings'
-        #-- within the Settings toolbar this analysis method will be used for PHE
-        linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
-        linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
-
-        slope = (linear_regression[0]-linear_regression[1])/abs((regression_dict[min1] - regression_dict[min2]))
-        b = (slope*regression_dict[min1]) - linear_regression[0]
-        b1 = ((linear_regression[0]*regression_dict[min1]) - (regression_dict[min2]*linear_regression[1]))/(regression_dict[min1] - regression_dict[min2])
-        i_index = adjusted_potentials.index(regression_dict[min1])
-        f_index = adjusted_potentials.index(regression_dict[min2])
-
-        regression_potentials = adjusted_potentials[i_index:f_index]
-        linear_approx = []
-        for value in regression_potentials:
-            linear_value = slope*value + b
-            linear_approx.append(linear_value)
 
         ################################################################
         ### If the user selected Peak Height Extraction, analyze PHE ###
         ################################################################
 
         if SelectedOptions == 'Peak Height Extraction':
-            ##############################
-            ### Peak Height Extraction ###
-            ##############################
-            if PHE_method == 'Abs':
-                Peak_Height = max(max1,max2)-min(min1,min2)
-            elif PHE_method == 'Linear':
-                Peak_Height = max([(y - y0) for y,y0 in zip(adjusted_currents,linear_approx)])
-
+            Peak_Height = max(max1,max2)-min(min1,min2)
             data = Peak_Height
 
 
@@ -2866,7 +2827,7 @@ class ElectrochemicalAnimation():
         ### Return data to the animate function as 'args' ###
         #####################################################
 
-        return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress, regression_potentials, linear_approx
+        return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress
 
 
     def _animate(self, framedata, *args):
@@ -2874,7 +2835,7 @@ class ElectrochemicalAnimation():
         if key > 0:
             while True:
 
-                potentials, adjusted_potentials, smooth_currents, adjusted_currents, regression, regression_potentials, linear_fit = framedata
+                potentials, adjusted_potentials, smooth_currents, adjusted_currents, regression = framedata
 
                 print('\n%s%d: %dHz\n%s_animate' % (self.spacer,self.electrode,frequency_list[self.count],self.spacer))
 
@@ -2920,9 +2881,6 @@ class ElectrochemicalAnimation():
                     plots[1].set_data(adjusted_potentials, regression)
                     plots[2].set_data(Xaxis,data)                    # Raw Data
                     plots[4].set_data(Xaxis,NormalizedDataList)           # Norm Data
-
-                    if PHE_method == 'Linear Fit':
-                        plots[7].set_data(regression_potentials, linear_fit)
 
                 ##########################################################
                 ### If an Injection Point has been set, visualize the  ###
