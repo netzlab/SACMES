@@ -86,6 +86,10 @@ sg_window = 5           ### Savitzky-Golay window (in mV range), must be odd num
 sg_degree = 1           ### Savitzky-Golay polynomial degree
 polyfit_deg = 15        ### degree of polynomial fit
 
+cutoff_frequency = 50          ### frequency that separates 'low' and 'high'
+                               ### frequencies for regression analysis and
+                               ### smoothing manipulation
+
 #############################
 ### Checkpoint Parameters ###
 #############################
@@ -110,8 +114,10 @@ column_index = -2           ### column index for list_val.
 ######################################################
 ### Low frequency baseline manipulation Parameters ###
 ######################################################
-LowFrequencyOffset = 0                  ### Vertical offset of normalized data for frequencies <= 50Hz
-LowFrequencySlope = 0          ### Slope manipulation of norm data for freq. <= 50Hz
+LowFrequencyOffset = 0         ### Vertical offset of normalized data for
+                               ### user specified 'Low Frequency'
+LowFrequencySlope = 0          ### Slope manipulation of norm data for user
+                               ### specified 'Low Frequency'
 
 
 ###############
@@ -134,7 +140,7 @@ SMALL_FONT = ('Verdana', 8)
 def _retrieve_file(file, electrode, frequency):
 
     if e_var == 'single':
-        filename = '%s%dHz_.txt' % (handle_variable, frequency)
+        filename = '%s%dHz_%d.txt' % (handle_variable, frequency, file)
         filename2 = '%s%dHz__%d.txt' % (handle_variable, frequency, file)
 
     elif e_var == 'multiple':
@@ -142,7 +148,6 @@ def _retrieve_file(file, electrode, frequency):
         filename2 = 'E%s_%s%sHz__%d.txt' % (electrode,handle_variable,frequency,file)
 
     return filename, filename2
-
 
 
 def ReadData(myfile, electrode):
@@ -201,7 +206,6 @@ def ReadData(myfile, electrode):
                 data_dict.setdefault(potential_value, []).append(current_value)
                 list_num = list_num + 1
 
-    currents = [abs(value) for value in currents]
 
     ### if there are 0's in the list (if the preallocation added to many)
     ### then remove them
@@ -1272,20 +1276,20 @@ class RealTimeManipulationFrame(tk.Frame):
         self.SmoothingEntry.insert(END, sg_window)
 
         #--- Check for the presence of high and low frequencies ---#
-        if frequency_list[-1] > 50:
+        if frequency_list[-1] > cutoff_frequency:
             self.High = True
         else:
             self.High = False
 
-        if frequency_list[0] <= 50:
+        if frequency_list[0] <= cutoff_frequency:
             self.Low = True
         else:
             self.Low = False
 
-        ###################################################
-        ### If a frequency <= 50Hz exists, grid a frame ###
-        ### for low frequency data manipulation         ###
-        ###################################################
+        ##########################################################
+        ### If a frequency <= cutoff_frequency exists, grid    ###
+        ### a frame for low frequency data manipulation        ###
+        ##########################################################
         if self.Low is True:
             LowParameterFrame = tk.Frame(RegressionFrame)
             LowParameterFrame.grid(row=3,column=0,columnspan=4, sticky='nsew')
@@ -1310,10 +1314,10 @@ class RealTimeManipulationFrame(tk.Frame):
             self.low_xend_entry.grid(row=1,column=1)
             low_xend_entry = self.low_xend_entry
 
-        ##################################################
-        ### If a frequency > 50Hz exists, grid a frame ###
-        ### for high frequency data manipulation       ###
-        ##################################################
+        #########################################################
+        ### If a frequency > cutoff_frequency exists, grid    ###
+        ### a frame for high frequency data manipulation      ###
+        #########################################################
         if self.High is True:
             HighParameterFrame = tk.Frame(RegressionFrame)
             HighParameterFrame.grid(row=3,column=0,columnspan=4, sticky='nsew')
@@ -1344,10 +1348,10 @@ class RealTimeManipulationFrame(tk.Frame):
         ############################################################
         if self.High is True:
             if self.Low is True:
-                self.SelectLowParameters = ttk.Button(RegressionFrame, style = 'Off.TButton', text = 'f <= 50Hz', command = lambda: self.show_frame('LowParameterFrame'))
+                self.SelectLowParameters = ttk.Button(RegressionFrame, style = 'Off.TButton', text = 'f <= %dHz' % cutoff_frequency, command = lambda: self.show_frame('LowParameterFrame'))
                 self.SelectLowParameters.grid(row=4,column=0,pady=5,padx=5)
 
-                self.SelectHighParameters = ttk.Button(RegressionFrame, style = 'On.TButton', text = 'f > 50Hz', command = lambda: self.show_frame('HighParameterFrame'))
+                self.SelectHighParameters = ttk.Button(RegressionFrame, style = 'On.TButton', text = 'f > %dHz' % cutoff_frequency, command = lambda: self.show_frame('HighParameterFrame'))
                 self.SelectHighParameters.grid(row=4,column=1,pady=5,padx=5)
 
 
@@ -1431,14 +1435,14 @@ class RealTimeManipulationFrame(tk.Frame):
 
         if self.Low:
 
-            #--- parameters for frequencies equal or below 50Hz ---#
+            #--- parameters for frequencies equal or below cutoff_frequency ---#
             low_xstart = float(self.low_xstart_entry.get())          # xstart/xend adjust the points at the start and end of the voltammogram/smoothed currents, respectively
             low_xend = float(self.low_xend_entry.get())
 
 
         if self.High:
 
-            #--- parameters for frequencies above 50Hz ---#
+            #--- parameters for frequencies above cutoff_frequency ---#
             high_xstart = float(self.high_xstart_entry.get())
             high_xend = float(self.high_xend_entry.get())
 
@@ -2099,7 +2103,7 @@ class InitializeFigureCanvas():
             ### Get the high and low potentials ###
             #######################################
 
-            if int(freq) > 50:
+            if int(freq) > cutoff_frequency:
 
                 if not HighAlreadyReset:
                     high_xstart = max(potentials)
@@ -2109,7 +2113,7 @@ class InitializeFigureCanvas():
                 xend = high_xend
                 xstart = high_xstart
 
-            elif int(freq) <= 50:
+            elif int(freq) <= cutoff_frequency:
 
                 if not LowAlreadyReset:
                     low_xstart = max(potentials)
@@ -2170,7 +2174,7 @@ class InitializeFigureCanvas():
                 AUC_index = 1
                 AUC = 0
 
-                AUC_potentials = [abs(potential) for potential in adjusted_potentials]
+                AUC_potentials = adjusted_potentials
                 AUC_min = min(adjusted_currents)
                 AUC_currents = [Y - AUC_min for Y in adjusted_currents]
 
@@ -2686,12 +2690,12 @@ class ElectrochemicalAnimation():
         ########################################
         ### Polynomical Regression Range (V) ###
         ########################################
-        #--- if the frequency is equal or below 50Hz, use the low freq parameters ---#
-        if frequency <= 50:
+        #--- if the frequency is equal or below cutoff_frequency, use the low freq parameters ---#
+        if frequency <= cutoff_frequency:
             xstart = low_xstart
             xend = low_xend
 
-        #--- if the frequency is above 50Hz, use the high freq parameters ---#
+        #--- if the frequency is above cutoff_frequency, use the high freq parameters ---#
         else:
             xstart = high_xstart
             xend = high_xend
@@ -2801,7 +2805,7 @@ class ElectrochemicalAnimation():
             AUC_index = 1
             AUC = 0
 
-            AUC_potentials = [abs(potential) for potential in adjusted_potentials]
+            AUC_potentials = adjusted_potentials
 
             #--- Find the minimum value and normalize it to 0 ---#
             AUC_min = min(adjusted_currents)
@@ -3133,9 +3137,10 @@ class DataNormalization():
 
                     normalized_data_list[num][count][:index] = [(idx/data_list[num][count][NormalizationIndex]) for idx in data_list[num][count][:index]]
 
-                    #############################################################
-                    ## If the frequency is below 50Hz, add the baseline Offset ##
-                    #############################################################
+                    ##################################################
+                    ## If the frequency is below cutoff_frequency, ###
+                    ## add the baseline Offset                     ###
+                    ##################################################
                     if frequency_list[count] == HighLowList['Low']:
                         for index in range(len(file_list)):
 
@@ -3185,9 +3190,10 @@ class DataNormalization():
                     ## Renormalize the data ##
                     ##########################
                     normalized_data_list[num][count][:index] = [idx/data_list[num][count][NormalizationIndex] for idx in data_list[num][count][:index]]
-                    #############################################################
-                    ## If the frequency is below 50Hz, add the baseline Offset ##
-                    #############################################################
+                    ##################################################
+                    ## If the frequency is below cutoff_frequency,  ##
+                    ## add the baseline Offset                      ##
+                    ##################################################
                     if frequency_list[count] == HighLowList['Low']:
                         for index in range(len(file_list)):
 
@@ -3235,7 +3241,7 @@ class DataNormalization():
         #-- Iterate through every frequency --#
         for frequency in frequency_list:
 
-            #-- Only apply the offset if the frequency is below 50 Hz --#
+            #-- Only apply the offset if the frequency is below cutoff_frequency --#
             if frequency == HighLowList['Low']:
                 count = frequency_dict[frequency]
 
@@ -3304,12 +3310,12 @@ class PostAnalysis(tk.Frame):
         self.completion_value = 0
 
         #--- Check for the presence of high and low frequencies ---#
-        if frequency_list[-1] > 50:
+        if frequency_list[-1] > cutoff_frequency:
             self.High = True
         else:
             self.High = False
 
-        if frequency_list[0] <= 50:
+        if frequency_list[0] <= cutoff_frequency:
             self.Low = True
         else:
             self.Low = False
@@ -3542,9 +3548,10 @@ class PostAnalysis(tk.Frame):
             for num in range(electrode_count):
                 for count in range(len(frequency_list)):
                     normalized_data_list[num][count] = [(idx/data_list[num][count][NormalizationIndex]) for idx in data_list[num][count]]
-                    #############################################################
-                    ## If the frequency is below 50Hz, add the baseline Offset ##
-                    #############################################################
+                    ##################################################
+                    ## If the frequency is below cutoff_frequency,  ##
+                    ## add the baseline Offset                      ##
+                    ##################################################
                     if frequency_list[count] == HighLowList['Low']:
                         for index in range(numFiles):
 
@@ -3561,8 +3568,7 @@ class PostAnalysis(tk.Frame):
 
                             offset_normalized_data_list[num][index] = normalized_data_list[num][count][index] + Offset
 
-        if RatioMetricCheck:
-            data_normalization.ResetRatiometricData()
+        data_normalization.ResetRatiometricData()
 
         self.NormWarning['fg'] = 'green'
         self.NormWarning['text'] = 'Normalized to File %d' % NormalizationPoint
