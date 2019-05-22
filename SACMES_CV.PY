@@ -1191,7 +1191,7 @@ class SetupFrame(tk.Frame):
 
 
     def Initialize(self):
-        global min_raw, max_raw, min_data, max_data, PlotValues, PlotFrames
+        global min_raw, max_raw, min_data, max_data, PlotValues, PlotFrames, text_file_export
 
         if self.AnodicSelectionExists:
             if self.CathodicSelectionExists:
@@ -2938,55 +2938,67 @@ class TextFileExport():
         TxtList.append('File')
 
         if SelectedOptions == 'Peak Height Extraction':
-            TxtList.append('Cathodic_PeakHeight (uA)')
-            TxtList.append('Anodic_PeakHeight (uA)')
-            TxtList.append('%dV_Cathodic (uA)' % Voltage1)
-            TxtList.append('%dV_Cathodic (uA)' % Voltage2)
-            TxtList.append('%dV_Anodic (uA)' % Voltage1)
-            TxtList.append('%dV_Anodic (uA)' % Voltage2)
+            TxtList.append('Cathodic_PeakHeight_(uA)')
+            TxtList.append('Anodic_PeakHeight_(uA)')
+            TxtList.append('%dV_Cathodic_(uA)' % Voltage1)
+            TxtList.append('%dV_Cathodic_(uA)' % Voltage2)
+            TxtList.append('%dV_Anodic_(uA)' % Voltage1)
+            TxtList.append('%dV_Anodic_(uA)' % Voltage2)
 
         elif SelectedOptions == 'Area Under the Curve':
-            TxtList.append('Cathodic_AUC (a.u)')
-            TxtList.append('Anodic_AUC (a.u)')
-            TxtList.append('%dV_Cathodic (uA)' % Voltage1)
-            TxtList.append('%dV_Cathodic (uA)' % Voltage2)
-            TxtList.append('%dV_Anodic (uA)' % Voltage1)
-            TxtList.append('%dV_Anodic (uA)' % Voltage2)
+            TxtList.append('Cathodic_AUC_(a.u)')
+            TxtList.append('Anodic_AUC_(a.u)')
+            TxtList.append('%dV_Cathodic_(uA)' % Voltage1)
+            TxtList.append('%dV_Cathodic_(uA)' % Voltage2)
+            TxtList.append('%dV_Anodic_(uA)' % Voltage1)
+            TxtList.append('%dV_Anodic_(uA)' % Voltage2)
 
         for electrode in self.electrode_list:
-            FileHandle = ''.join(FileHandle+'_E%d' % electrode)
-            with open(FileHandle,'w+',encoding='utf-8', newline = '') as input:
+            LocalFileHandle = FileHandle.split('.')
+            LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % electrode + '.txt')
+            with open(LocalFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
                 writer.writerow(TxtList)
 
     #################################################################
     ### Write the data from the current file into the Export File ###
     #################################################################
-    def RealTimeExport(self, _file_, electrode):
+    def RealTimeExport(self, _file_):
 
         index = _file_ - 1
         list = []
         list.append(str(_file_))
-        num = electrode - 1
 
         #--- Peak Height ---#
         for num in range(electrode_count):
+
+            #-- Cathodic and Anodic PHE/AUC --#
             list.append(data_list[num][0][index])
             list.append(data_list[num][1][index])
 
-        #--- Write the data into the .txt file ---#
-        with open(self.TextFileHandle,'a',encoding='utf-8', newline = '') as input:
-            writer = csv.writer(input, delimiter = ' ')
-            writer.writerow(list)
-        with open(self.TextFileHandle,'r',encoding='utf-8', newline = '') as filecontents:
-            filedata =  filecontents.read()
-        filedata = filedata.replace('[','')
-        filedata = filedata.replace('"','')
-        filedata = filedata.replace(']','')
-        filedata = filedata.replace(',','')
-        filedata = filedata.replace('\'','')
-        with open(self.TextFileHandle,'w',encoding='utf-8', newline = '') as output:
-            output.write(filedata)
+            #-- Voltage 1 (Cathodic, Anodic) --#
+            list.append(voltage1_data[num][0][index])
+            list.append(voltage1_data[num][1][index])
+
+            #-- Voltage 2 (Cathodic, Anodic) --#
+            list.append(voltage2_data[num][0][index])
+            list.append(voltage2_data[num][1][index])
+
+            LocalFileHandle = FileHandle.split('.')
+            LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % (num+1) + '.txt')
+            #--- Write the data into the .txt file ---#
+            with open(LocalFileHandle,'a',encoding='utf-8', newline = '') as input:
+                writer = csv.writer(input, delimiter = ' ')
+                writer.writerow(list)
+            with open(LocalFileHandle,'r',encoding='utf-8', newline = '') as filecontents:
+                filedata =  filecontents.read()
+            filedata = filedata.replace('[','')
+            filedata = filedata.replace('"','')
+            filedata = filedata.replace(']','')
+            filedata = filedata.replace(',','')
+            filedata = filedata.replace('\'','')
+            with open(LocalFileHandle,'w',encoding='utf-8', newline = '') as output:
+                output.write(filedata)
 
 
 
