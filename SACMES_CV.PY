@@ -3132,16 +3132,16 @@ class TextFileExport():
         for num in range(electrode_count):
 
             #-- Forwards and Reverse PHE/AUC --#
-            list.append(data_list[num][0][index])
-            list.append(data_list[num][1][index])
+            list.append(data_list[num]['forwards'][index])
+            list.append(data_list[num]['reverse'][index])
 
             #-- Voltage 1 (Forwards, Reverse) --#
-            list.append(voltage1_data[num][0][index])
-            list.append(voltage1_data[num][1][index])
+            list.append(voltage1_data[num]['forwards'][index])
+            list.append(voltage1_data[num]['reverse'][index])
 
             #-- Voltage 2 (Forwards, Reverse) --#
-            list.append(voltage2_data[num][0][index])
-            list.append(voltage2_data[num][1][index])
+            list.append(voltage2_data[num]['forwards'][index])
+            list.append(voltage2_data[num]['reverse'][index])
 
             LocalFileHandle = FileHandle.split('.')
             LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % (num+1) + '.txt')
