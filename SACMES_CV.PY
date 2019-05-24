@@ -217,7 +217,7 @@ def ReadData(myfile, electrode):
 
                     correlation_list.append((potential_value, current_value))
 
-        potential_step = abs(potentials[0] - potentials[1])
+
 
         ### if there are 0's in the list (if the preallocation added to many)
         ### then remove them
@@ -261,9 +261,30 @@ def ReadData(myfile, electrode):
             if list_num > 1:
                 #-- if the step potentials do not match, the sign has  --#
                 #-- reversed and a new segment has begun               --#
+
+                #-- the step_list is one index behind the segment dictionary --#
                 if step_list[list_num-1] != step_list[list_num-2]:
+
                     segment_number += 1
                     segment_dictionary[segment_number] = ([],{},{})
+
+
+
+                    #-- append the inflection point to both segments --#
+                    segment_dictionary[segment_number][0].append(list_num-1)
+                    segment_dictionary[segment_number][1][potentials[list_num-1]] = list_num-1
+                    segment_dictionary[segment_number][2][potentials[list_num-1]] = currents[list_num-1]
+
+                    if step == 'Negative':
+                        if segment_number not in reverse_dictionary:
+                            reverse_dictionary[segment_number] = {}
+                        reverse_dictionary[segment_number][potentials[list_num-1]] = list_num-1
+
+                    if step == 'Positive':
+                        if segment_number not in forwards_dictionary:
+                            forwards_dictionary[segment_number] = {}
+                        forwards_dictionary[segment_number][potentials[list_num-1]] = list_num-1
+
 
                 if step == 'Negative':
                     if segment_number not in reverse_dictionary:
@@ -282,12 +303,35 @@ def ReadData(myfile, electrode):
 
             list_num += 1
 
+        print('READ DATA COMPLETE')
         #-- Return the data --#
         return potentials, currents, data_dict, segment_dictionary, forwards_dictionary,reverse_dictionary
 
     except:
         print('\n\nError in Read Data\n\n')
 
+def ClosestCurrentEstimation(voltage, potentials):
+
+    ###################################################################
+    ### Find the closest potential value to the user-inputted value ###
+    ###################################################################
+    # shift all potentials positive with the minimum potential = 0 #
+    min_voltage = min(potentials)
+    selection_potentials = [x - min_voltage for x in potentials]
+    adjusted_voltage = voltage - min_voltage
+
+    value = 0
+    selection_dict = {}
+    for x in selection_potentials:
+        selection = x - adjusted_voltage
+        selection_dict[selection] = value
+        value += 1
+
+    #-- Voltage 1 --#
+    Voltage_Index = selection_dict[min(selection_dict, key=abs)]
+    Voltage = potentials[Voltage_Index]
+
+    return Voltage
 
 #######################################################################
 ### Function to raise frame of column 0.                            ###
@@ -431,12 +475,12 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         self.Interval.insert(END, '10')
         self.Interval.grid(row=6,column=2,columnspan=2,pady=6)
 
-        #---Sample Rate Variable---#
-        SampleLabel = tk.Label(self, text='Sampling Rate (s):', font=LARGE_FONT)
-        SampleLabel.grid(row=7,column=0,columnspan=2)
-        self.sample_rate = ttk.Entry(self, width=7)
-        self.sample_rate.insert(END, '20')
-        self.sample_rate.grid(row=8,column=0,columnspan=2)
+        #---Scan Rate Variable---#
+        ScanLabel = tk.Label(self, text='Scan Rate (V/s):', font=LARGE_FONT)
+        ScanLabel.grid(row=7,column=0,columnspan=2)
+        self.scan_rate = ttk.Entry(self, width=7)
+        self.scan_rate.insert(END, '0.1')
+        self.scan_rate.grid(row=8,column=0,columnspan=2)
 
         self.resize_label = tk.Label(self, text='Resize Interval', font = LARGE_FONT)
         self.resize_label.grid(row=7,column=2,columnspan=2)
@@ -678,7 +722,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
     ########################################################################
 
     def StartProgram(self):
-        global FileHandle, starting_file, handle_variable, track, Interval, e_var, resize_interval, CV_min, CV_max, data_min, data_max, mypath, electrode_count, SaveVar, track, numFiles, frames, generate, figures, Plot, frame_list, PlotValues, anim, q, delimiter
+        global FileHandle, starting_file, scan_rate, handle_variable, track, Interval, e_var, resize_interval, CV_min, CV_max, data_min, data_max, mypath, electrode_count, SaveVar, track, numFiles, frames, generate, figures, Plot, frame_list, PlotValues, anim, q, delimiter
 
         #---Get the User Input and make it globally accessible---#
 
@@ -694,9 +738,10 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
         starting_file = 1
 
-        SaveVar = self.SaveVar.get()            # tracks if text file export has been activated
+        SaveVar = self.SaveVar.get()                        # tracks if text file export has been activated
         resize_interval = int(self.resize_entry.get())      # interval at which xaxis of plots resizes
         handle_variable = self.ImportFileEntry.get()        # string handle used for the input file
+        scan_rate = float(self.scan_rate.get())
 
         #############################################################
         ### Interval at which the program searches for files (ms) ###
@@ -753,7 +798,6 @@ class CheckPoint():
         self.StopSearch = False
 
         self.num = 0
-        self.count = 0
         self.analysis_count = 0
         self.analysis_limit = electrode_count
         self.electrode_limit = electrode_count - 1
@@ -866,6 +910,8 @@ class SetupFrame(tk.Frame):
         self.potentials = setup_dictionary['potentials']
         self.currents = setup_dictionary['currents']
         self.segment_dictionary = setup_dictionary['segments']
+        for segment in self.segment_dictionary:
+            print('Segment %d' % segment,self.segment_dictionary[segment][1])
         self.forwards = setup_dictionary['forwards']
         self.reverse = setup_dictionary['reverse']
         self.data_dict = setup_dictionary['data']
@@ -967,7 +1013,7 @@ class SetupFrame(tk.Frame):
         self.Voltage1 = tk.Entry(self.SelectUniqueVoltages, width=7)
         self.Voltage1.grid(row=1,column=0,padx=5,pady=5)
 
-        self.NoVoltage1Selection = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
+        self.Voltage1Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage1Exists = False
         self.Voltage1Warning = False
 
@@ -975,7 +1021,7 @@ class SetupFrame(tk.Frame):
         self.Voltage2 = tk.Entry(self.SelectUniqueVoltages, width=7)
         self.Voltage2.grid(row=1,column=1,padx=5,pady=5)
 
-        self.NoVoltage2Selection = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
+        self.Voltage2Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage2Exists = False
         self.Voltage2Warning = False
 
@@ -1092,6 +1138,12 @@ class SetupFrame(tk.Frame):
         if not self.ReverseSelectionExists:
             self.ReverseSelectionExists = True
 
+        if self.Voltage1Exists:
+            self.check_V1(Voltage1)
+
+        if self.Voltage2Exists:
+            self.check_V2(Voltage2)
+
         self.blit_data(self.setup_artists)
 
 
@@ -1115,6 +1167,12 @@ class SetupFrame(tk.Frame):
 
         if not self.ForwardsSelectionExists:
             self.ForwardsSelectionExists = True
+
+        if self.Voltage1Exists:
+            self.check_V1(Voltage1)
+
+        if self.Voltage2Exists:
+            self.check_V2(Voltage2)
 
         self.blit_data(self.setup_artists)
 
@@ -1155,42 +1213,80 @@ class SetupFrame(tk.Frame):
 
         if Voltage1 is not None:
             try:
-                Voltage1 = self.ClosestCurrentEstimation(Voltage1)
-                self.Voltage1Exists = True
+                self.check_V1(Voltage1)
+
             except:
                 print('\nCould not retrieve voltage 1')
+
         if Voltage2 is not None:
             try:
-                Voltage2 = self.ClosestCurrentEstimation(Voltage2)
-                self.Voltage2Exists = True
+                self.check_V2(Voltage2)
             except:
                 print('\nCould not retrieve voltage 2')
 
-    def ClosestCurrentEstimation(self, voltage):
+    def check_V1(self, voltage):
+        global Voltage1
 
-        ###################################################################
-        ### Find the closest potential value to the user-inputted value ###
-        ###################################################################
-        # shift all potentials positive with the minimum potential = 0 #
-        selection_potentials = [x - self.min_voltage for x in self.potentials]
-        adjusted_voltage = voltage - self.min_voltage
+        Voltage1 = ClosestCurrentEstimation(voltage,self.potentials)
 
-        value = 0
-        selection_dict = {}
-        for x in selection_potentials:
-            selection = x - adjusted_voltage
-            selection_dict[selection] = value
-            value += 1
+        passkey = True
+        if self.ForwardsSelectionExists:
+            if Voltage1 not in self.forwards_potentials:
+                passkey = False
 
-        #-- Voltage 1 --#
-        Voltage_Index = selection_dict[min(selection_dict, key=abs)]
-        Voltage = self.potentials[Voltage_Index]
+        if self.ReverseSelectionExists:
+            if Voltage1 not in self.reverse_potentials:
+                passkey = False
 
-        return Voltage
-        #**************************************************************#
-        # would be nice to allow for an arbitrary number of voltages **#
-        # to be analyzed                                             **#
-        #**************************************************************#
+        if passkey:
+            self.Voltage1Exists = True
+
+            if self.Voltage1Warning:
+                self.Voltage1Error.grid_forget()
+
+            return True
+
+        else:
+            self.Voltage1Error['text'] = 'Voltage 1 not in\nboth segments'
+            self.Voltage1Error.grid(row=2,column=0)
+            self.Voltage1Warning = True
+
+            if self.Voltage1Exists:
+                self.Voltage1Exists = False
+
+            return False
+
+    def check_V2(self, voltage):
+        global Voltage2
+
+        Voltage2 = ClosestCurrentEstimation(voltage,self.potentials)
+
+        passkey = True
+        if self.ForwardsSelectionExists:
+            if Voltage2 not in self.forwards_potentials:
+                passkey = False
+
+        if self.ReverseSelectionExists:
+            if Voltage2 not in self.reverse_potentials:
+                passkey = False
+
+        if passkey:
+            self.Voltage2Exists = True
+
+            if self.Voltage2Warning:
+                self.Voltage2Error.grid_forget()
+
+            return True
+
+        else:
+            self.Voltage2Error['text'] = 'Voltage 2 not in\nboth segments'
+            self.Voltage2Error.grid(row=2,column=1)
+            self.Voltage2Warning = True
+
+            if self.Voltage2Exists:
+                self.Voltage2Exists = False
+
+            return False
 
     def blit_data(self, artists):
 
@@ -1243,18 +1339,18 @@ class SetupFrame(tk.Frame):
 
         if self.Voltage1Exists:
             if self.Voltage1Warning:
-                self.NoVoltage1Selection.grid_forget()
+                self.Voltage1Error.grid_forget()
         else:
-            self.NoVoltage1Selection.grid(row=2,column=0)
+            self.Voltage1Error.grid(row=2,column=0)
             self.Voltage1Warning = True
 
             passkey = False
 
         if self.Voltage2Exists:
             if self.Voltage2Warning:
-                self.NoVoltage2Selection.grid_forget()
+                self.Voltage2Error.grid_forget()
         else:
-            self.NoVoltage2Selection.grid(row=2,column=1)
+            self.Voltage2Error.grid(row=2,column=1)
             self.Voltage2Warning = True
 
             passkey = False
@@ -1563,7 +1659,7 @@ class SetupVisualizationFrame(tk.Frame):
 #########################################################
 
 class VisualizationFrame(tk.Frame):
-    def __init__(self, electrode, count, parent, controller):
+    def __init__(self, electrode, frame_count, parent, controller):
         global FrameFileLabel
 
         tk.Frame.__init__(self, parent)
@@ -1580,7 +1676,7 @@ class VisualizationFrame(tk.Frame):
         FrameFileLabel.grid(row=0,column=1,pady=3,sticky='ne')
 
         #--- Voltammogram, Raw Peak Height, and Normalized Figure and Artists ---#
-        fig, ax = figures[count]                                                # Call the figure and artists for the electrode
+        fig, ax = figures[frame_count]                                                # Call the figure and artists for the electrode
         canvas = FigureCanvasTkAgg(fig, self)                                         # and place the artists within the frame
         canvas.draw()                                                           # initial draw call to create the artists that will be blitted
         canvas.get_tk_widget().grid(row=1,columnspan=2,pady=6,ipady=5,sticky='news')          # does not affect size of figure within plot container
@@ -1641,25 +1737,22 @@ class InitializeFigureCanvas():
         std_data_list = []                                          # standard deviation between electrodes for each frequency
 
         for num in range(electrode_count):
-            data_list[num] = [0,0]
-            for count in range(2):
+            data_list[num] = {}
+            for count in ['forwards','reverse']:
                 data_list[num][count] = [0]*numFiles                      # a data list for each eletrode
 
+        #-- Data Stored for Voltage 1 --#
         voltage1_data = [0]*electrode_count
         for num in range(electrode_count):
-            #-- Data Stored for Voltage 1 --#
-            voltage1_data[num] = [0,0]
-            #-- 1st forwards, 2nd reverse --#
-            for count in range(2):
+            voltage1_data[num] = {}
+            for count in ['forwards','reverse']:
                 voltage1_data[num][count] = [0]*numFiles
 
         #-- Data Stored for Voltage 2 --#
         voltage2_data = [0]*electrode_count
         for num in range(electrode_count):
-            #-- Data Stored for Voltage 1 --#
-            voltage2_data[num] = [0,0]
-            #-- 1st forwards, 2nd reverse --#
-            for count in range(2):
+            voltage2_data[num] = {}
+            for count in ['forwards','reverse']:
                 voltage2_data[num][count] = [0]*numFiles
 
         #--- Lists of Frames and Artists ---#
@@ -1668,7 +1761,6 @@ class InitializeFigureCanvas():
 
         #--- Misc Lists ---#
         file_list = []          # Used for len(file_list)
-        sample_list = []        # For plotting Peak Height vs. sample rate
 
         ######################################
         ### Create an initial setup figure ###
@@ -1680,7 +1772,7 @@ class InitializeFigureCanvas():
     ### Create the figure and artist objects ###
     ############################################
     def MakeFigure(self, electrode):
-        global list_val, EmptyPlots, plot_list, SampleRate, frame_list, numFiles
+        global list_val, EmptyPlots, plot_list, ScanRate, frame_list, numFiles
 
         ########################
         ### Setup the Figure ###
@@ -1703,13 +1795,13 @@ class InitializeFigureCanvas():
         if SelectedOptions == 'Peak Height Extraction':
             ax[0,1].set_ylabel('Peak Height\n(µA)',fontweight='bold')
         elif SelectedOptions == 'Area Under the Curve':
-            ax[0,1].set_ylabel('AUC (a.u.)',fontweight='bold')
+            ax[0,1].set_ylabel('AUC (µC)',fontweight='bold')
 
         #-- User-specified voltage Plots --#
         ax[1,0].set_xlabel('File #')    # Voltage 1
         ax[1,1].set_xlabel('File #')    # Voltage 2
-        ax[1,0].set_ylabel('Current (uA)')  # Voltage 1
-        ax[1,1].set_ylabel('Current (uA)')  # Voltage 2
+        ax[1,0].set_ylabel('Current (µA)')  # Voltage 1
+        ax[1,1].set_ylabel('Current (µA)')  # Voltage 2
 
 
         #############################################
@@ -1870,41 +1962,36 @@ class InitializeFigureCanvas():
             ########################################
             ### Iterate through the two segments ###
             ########################################
-            segment_data = [[],[]]
-            adjusted_segment_data = [[],[]]
             V1_data = []
             V2_data = []
             local_data_list = []
-            vertex_data = {}
-            for count in [0,1]:
+            for count in ['forwards','reverse']:
 
                 #-- 1st, forwards --#
-                if count == 0:
+                if count == 'forwards':
                     segment = forwards_segment
 
                 #-- 2nd, reverse --#
-                elif count == 1:
+                elif count == 'reverse':
                     segment = reverse_segment
 
 
                 index_list, potential_dict, data_dict = segment_dictionary[segment]
                 segment_potentials = [potentials[index] for index in index_list]
-                segment_currents = [currents[index] for index in index_list]
-                segment_data[count] = [segment_potentials,segment_currents]
-                adjusted_potentials = [potential for potential in segment_potentials if low_voltage < potential < high_voltage]
+                adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
                 adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
                 adjusted_currents = [currents[index] for index in adjusted_index_list]
-                adjusted_segment_data[count] = [adjusted_potentials,adjusted_currents]
 
                 ################################################
                 ### Extract Data for User-Specified Voltages ###
                 ################################################
-                Voltage1_Index = potential_dict[Voltage1]
+                V1 = ClosestCurrentEstimation(Voltage1,segment_potentials)
+                Voltage1_Index = potential_dict[V1]
                 Voltage1_Current = currents[Voltage1_Index]
                 V1_data.append(Voltage1_Current)
 
-                Voltage2_Index = potential_dict[Voltage2]
-
+                V2 = ClosestCurrentEstimation(Voltage2,segment_potentials)
+                Voltage2_Index = potential_dict[V2]
                 Voltage2_Current = currents[Voltage2_Index]
                 V2_data.append(Voltage2_Current)
 
@@ -1914,7 +2001,6 @@ class InitializeFigureCanvas():
                 #-- If the user selects 'Absolute Max/Min' in the 'Peak Height Extraction Settings'
                 #-- within the Settings toolbar this analysis method will be used for PHE
                 fit_half = round(len(adjusted_potentials)/2)
-
                 min1 = min(adjusted_currents[:fit_half])
                 min2 = min(adjusted_currents[fit_half:])
                 max1 = max(adjusted_currents[:fit_half])
@@ -1924,15 +2010,13 @@ class InitializeFigureCanvas():
                 ### Area under the Curve vertices ###
                 #####################################
                 vertices = [(adjusted_potentials[0],adjusted_currents[0]), *zip(adjusted_potentials, adjusted_currents), (adjusted_potentials[-1],adjusted_currents[-1])]
-                vertex_data[count] = vertices
-
 
                 ################################################################
                 ### If the user selected Peak Height Extraction, analyze PHE ###
                 ################################################################
 
                 if SelectedOptions == 'Peak Height Extraction':
-                    Peak_Height = abs(max(max1,max2)-min(min1,min2))
+                    Peak_Height = max(max1,max2)-min(min1,min2)
                     data = Peak_Height
                     local_data_list.append(data)
 
@@ -1943,52 +2027,27 @@ class InitializeFigureCanvas():
                 elif SelectedOptions == 'Area Under the Curve':
 
                     polygon = Shape(vertices)
-                    AUC = polygon.area
+                    AUC = polygon.area/scan_rate
                     data = AUC
 
                     local_data_list.append(data)
 
-
-
-                    ##################################
-                    ### Integrate Area Under the   ###
-                    ### Curve using a Riemmann Sum  ###
-                    ##################################
-                    #AUC_index = 1
-                    #AUC = 0
-
-                    #AUC_potentials = adjusted_potentials
-
-                    #--- Find the minimum value and normalize it to 0 ---#
-                    #AUC_min = min(adjusted_currents)
-                    #AUC_currents = [Y - AUC_min for Y in adjusted_currents]
-
-                    #--- Midpoint Riemann Sum ---#
-                    #while AUC_index <= len(AUC_currents) - 1:
-                    #    AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
-                    #    AUC_width = AUC_potentials[AUC_index] - AUC_potentials[AUC_index - 1]
-                    #    AUC += (AUC_height * AUC_width)
-                    #    AUC_index += 1
-
-                    #data = AUC
-                    #local_data_list.append(data)
-
             ###########################
             ## Set the X and Y Axes ###
             ###########################
-            #-- Reverse voltammogram to match the 'Texas' convention --#
-            ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
-
             ### Cyclic Voltammogram Plot ###
+            ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
             ax[0,0].set_ylim(MIN_CURRENT-(abs(MIN_CURRENT)*CV_min),MAX_CURRENT+(CV_max*abs(MAX_CURRENT)))                   # voltammogram
+
+            ### PHE/AUC Plot ###
             local_min = min(local_data_list)
             local_max = max(local_data_list)
             ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))                   # raw peak height
 
-
-
             #-- Voltage 1 Plot --#
             ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
+
+            #-- Voltage 2 Plot --#
             ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
 
             return True
@@ -2086,7 +2145,6 @@ class ElectrochemicalAnimation():
         self.index = 0                                           # File Index Value
         self.ax = ax                                             # Figure Axes object
 
-        ### Lists for sample rate (time passed)  ###
         ### and file count for each electrode    ###
         self.file_list = []
 
@@ -2445,7 +2503,6 @@ class ElectrochemicalAnimation():
             self.file += 1
             self.index += 1
             print('%smoving onto file %s\n' % (self.spacer,str(self.file)))
-            self.count = 0
             root.after(1, self._step)
 
 
@@ -2459,41 +2516,42 @@ class ElectrochemicalAnimation():
         ########################################
         ### Iterate through the two segments ###
         ########################################
-        segment_data = [[],[]]
-        adjusted_segment_data = [[],[]]
+        segment_data = {}
+        adjusted_segment_data = {}
         baseline_data = {}
         vertex_data = {}
-        for count in [0,1]:
+
+
+        for count in ['forwards','reverse']:
 
             #-- 1st, forwards --#
-            if count == 0:
+            if count == 'forwards':
                 segment = forwards_segment
 
             #-- 2nd, reverse --#
-            elif count == 1:
+            elif count == 'reverse':
                 segment = reverse_segment
-
 
             index_list, potential_dict, data_dict = segment_dictionary[segment]
             segment_potentials = [potentials[index] for index in index_list]
             segment_currents = [currents[index] for index in index_list]
             segment_data[count] = [segment_potentials,segment_currents]
 
-
-            adjusted_potentials = [potential for potential in segment_potentials if low_voltage < potential < high_voltage]
+            adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
             adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
             adjusted_currents = [currents[index] for index in adjusted_index_list]
             adjusted_segment_data[count] = [adjusted_potentials,adjusted_currents]
 
-
             ################################################
             ### Extract Data for User-Specified Voltages ###
             ################################################
-            Voltage1_Index = potential_dict[Voltage1]
+            V1 = ClosestCurrentEstimation(Voltage1,segment_potentials)
+            Voltage1_Index = potential_dict[V1]
             Voltage1_Current = currents[Voltage1_Index]
             voltage1_data[self.num][count][self.index] = Voltage1_Current
 
-            Voltage2_Index = potential_dict[Voltage2]
+            V2 = ClosestCurrentEstimation(Voltage2,segment_potentials)
+            Voltage2_Index = potential_dict[V2]
             Voltage2_Current = currents[Voltage2_Index]
             voltage2_data[self.num][count][self.index] = Voltage2_Current
 
@@ -2520,13 +2578,13 @@ class ElectrochemicalAnimation():
             ### Linear Baseline Creation ###
             ################################
 
-            #-- Forwards --#
-            if count == 0:
+            #-- if the peak is positive --#
+            if abs(max(max1,max2)) > abs(min(min1,min2)):
                 linear_baseline = np.linspace(min1,min2,len(adjusted_currents))
                 baseline_data[count] = linear_baseline
 
-            #-- Reverse
-            elif count == 1:
+            #-- if the peak is negative --#
+            elif abs(max(max1,max2)) < abs(min(min1,min2)):
                 linear_baseline = np.linspace(max1,max2,len(adjusted_currents))
                 baseline_data[count] = linear_baseline
 
@@ -2535,7 +2593,7 @@ class ElectrochemicalAnimation():
             ################################################################
 
             if SelectedOptions == 'Peak Height Extraction':
-                Peak_Height = abs(max(max1,max2)-min(min1,min2))
+                Peak_Height = max(max1,max2)-min(min1,min2)
                 data = Peak_Height
 
             ########################################################
@@ -2544,33 +2602,14 @@ class ElectrochemicalAnimation():
 
             elif SelectedOptions == 'Area Under the Curve':
 
-
                 ##################################
                 ### Integrate Area Under the   ###
                 ### Curve using a Riemmann Sum  ###
                 ##################################
 
                 polygon = Shape(vertices)
-                AUC = polygon.area
+                AUC = polygon.area/scan_rate
                 data = AUC
-
-                #AUC_index = 1
-                #AUC = 0
-
-                #AUC_potentials = adjusted_potentials
-
-                #--- Find the minimum value and normalize it to 0 ---#
-                #AUC_min = min(adjusted_currents)
-                #AUC_currents = [Y - AUC_min for Y in adjusted_currents]
-
-                #--- Midpoint Riemann Sum ---#
-                #while AUC_index <= len(AUC_currents) - 1:
-                #    AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
-                #    AUC_width = AUC_potentials[AUC_index] - AUC_potentials[AUC_index - 1]
-                #    AUC += (AUC_height * AUC_width)
-                #    AUC_index += 1
-
-                #data = AUC
 
             #######################################
             ### Save the data into global lists ###
@@ -2592,28 +2631,26 @@ class ElectrochemicalAnimation():
                 segment_data, adjusted_segment_data, baseline_data, vertex_data = framedata
 
                 #-- Forwards Segment --#
-                forwards_data = segment_data[0]
+                forwards_data = segment_data['forwards']
                 forwards_potentials = forwards_data[0]
                 forwards_currents = forwards_data[1]
 
-                adjusted_forwards_data = adjusted_segment_data[0]
+                adjusted_forwards_data = adjusted_segment_data['forwards']
                 adjusted_forwards_potentials = adjusted_forwards_data[0]
                 adjusted_forwards_currents = adjusted_forwards_data[1]
 
-                forwards_baseline = baseline_data[0]
-
-
+                forwards_baseline = baseline_data['forwards']
 
                 #-- Reverse Segment --#
-                reverse_data = segment_data[1]
+                reverse_data = segment_data['reverse']
                 reverse_potentials = reverse_data[0]
                 reverse_currents = reverse_data[1]
 
-                adjusted_reverse_data = adjusted_segment_data[1]
+                adjusted_reverse_data = adjusted_segment_data['reverse']
                 adjusted_reverse_potentials = adjusted_reverse_data[0]
                 adjusted_reverse_currents = adjusted_reverse_data[1]
 
-                reverse_baseline = baseline_data[1]
+                reverse_baseline = baseline_data['reverse']
 
                 print('\n%s %d %s_animate\n' % (self.spacer,self.electrode,self.spacer))
 
@@ -2631,25 +2668,25 @@ class ElectrochemicalAnimation():
                 plots[0].set_data(forwards_potentials,forwards_currents)
                 plots[1].set_data(adjusted_forwards_potentials,adjusted_forwards_currents)
                 plots[2].set_data(adjusted_forwards_potentials,forwards_baseline)
-                plots[3].set_xy(vertex_data[0])
+                plots[3].set_xy(vertex_data['forwards'])
 
                 #-- Reverse Segment --#
                 plots[4].set_data(reverse_potentials,reverse_currents)
                 plots[5].set_data(adjusted_reverse_potentials,adjusted_reverse_currents)
                 plots[6].set_data(adjusted_reverse_potentials,reverse_baseline)
-                plots[7].set_xy(vertex_data[1])
+                plots[7].set_xy(vertex_data['reverse'])
 
                 #--- Peak Height/AUC ---#
-                plots[8].set_data(self.file_list,data_list[self.num][0][:len(self.file_list)])   # Forwards
-                plots[9].set_data(self.file_list,data_list[self.num][1][:len(self.file_list)])   # Reverse
+                plots[8].set_data(self.file_list,data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
+                plots[9].set_data(self.file_list,data_list[self.num]['reverse'][:len(self.file_list)])   # Reverse
 
                 #--- Voltage 1 ---#
-                plots[10].set_data(self.file_list,voltage1_data[self.num][0][:len(self.file_list)])
-                plots[11].set_data(self.file_list,voltage1_data[self.num][1][:len(self.file_list)])
+                plots[10].set_data(self.file_list,voltage1_data[self.num]['forwards'][:len(self.file_list)])
+                plots[11].set_data(self.file_list,voltage1_data[self.num]['reverse'][:len(self.file_list)])
 
                 #--- Voltage 2 ---#
-                plots[12].set_data(self.file_list,voltage2_data[self.num][0][:len(self.file_list)])
-                plots[13].set_data(self.file_list,voltage2_data[self.num][1][:len(self.file_list)])
+                plots[12].set_data(self.file_list,voltage2_data[self.num]['forwards'][:len(self.file_list)])
+                plots[13].set_data(self.file_list,voltage2_data[self.num]['reverse'][:len(self.file_list)])
 
                 print('returning plots!')
                 return plots
@@ -2872,7 +2909,7 @@ class PostAnalysis(tk.Frame):
             ### Acquire the artists for this electrode at this frequency ###
             ### and get the data that will be visualized                 ###
             ################################################################
-            plots = plot_list[num][count]                              # 'count' is the frequency index value
+            plots = plot_list[num]
 
             ##########################
             ### Visualize the data ###
@@ -2880,7 +2917,7 @@ class PostAnalysis(tk.Frame):
 
             #--- Peak Height/AUC ---#
 
-            data = data_list[num][count]                     # 'num' is the electrode index value
+            data = data_list[num]
 
             ### Draw new data ###
             ax[1,0].clear()
@@ -2895,7 +2932,7 @@ class PostAnalysis(tk.Frame):
             if SelectedOptions == 'Peak Height Extraction':
                 ax[1,0].set_ylabel('Peak Height\n(µA)',fontweight='bold')
             elif SelectedOptions == 'Area Under the Curve':
-                ax[1,0].set_ylabel('AUC (a.u.)',fontweight='bold')
+                ax[1,0].set_ylabel('AUC (µC)',fontweight='bold')
             ax[2,0].set_ylabel('Normalized', fontweight='bold')
 
             fig.canvas.draw_idle()
@@ -3060,20 +3097,20 @@ class TextFileExport():
         TxtList.append('File')
 
         if SelectedOptions == 'Peak Height Extraction':
-            TxtList.append('Forwards_PeakHeight_(uA)')
-            TxtList.append('Reverse_PeakHeight_(uA)')
-            TxtList.append('%dV_Forwards_(uA)' % Voltage1)
-            TxtList.append('%dV_Forwards_(uA)' % Voltage2)
-            TxtList.append('%dV_Reverse_(uA)' % Voltage1)
-            TxtList.append('%dV_Reverse_(uA)' % Voltage2)
+            TxtList.append('Forwards_PeakHeight_(µA)')
+            TxtList.append('Reverse_PeakHeight_(µA)')
+            TxtList.append('%dV_Forwards_(µA)' % Voltage1)
+            TxtList.append('%dV_Forwards_(µA)' % Voltage2)
+            TxtList.append('%dV_Reverse_(µA)' % Voltage1)
+            TxtList.append('%dV_Reverse_(µA)' % Voltage2)
 
         elif SelectedOptions == 'Area Under the Curve':
-            TxtList.append('Forwards_AUC_(a.u)')
-            TxtList.append('Reverse_AUC_(a.u)')
-            TxtList.append('%dV_Forwards_(uA)' % Voltage1)
-            TxtList.append('%dV_Forwards_(uA)' % Voltage2)
-            TxtList.append('%dV_Reverse_(uA)' % Voltage1)
-            TxtList.append('%dV_Reverse_(uA)' % Voltage2)
+            TxtList.append('Forwards_AUC_(µC)')
+            TxtList.append('Reverse_AUC_(µC)')
+            TxtList.append('%dV_Forwards_(µA)' % Voltage1)
+            TxtList.append('%dV_Forwards_(µA)' % Voltage2)
+            TxtList.append('%dV_Reverse_(µA)' % Voltage1)
+            TxtList.append('%dV_Reverse_(µA)' % Voltage2)
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.')
