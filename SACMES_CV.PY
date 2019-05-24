@@ -43,6 +43,8 @@ import numpy as np
 import csv
 from pylab import *
 from numpy import *
+import scipy
+from scipy import *
 from scipy.interpolate import *
 from scipy.integrate import simps
 from scipy.signal import *
@@ -303,7 +305,6 @@ def ReadData(myfile, electrode):
 
             list_num += 1
 
-        print('READ DATA COMPLETE')
         #-- Return the data --#
         return potentials, currents, data_dict, segment_dictionary, forwards_dictionary,reverse_dictionary
 
@@ -910,8 +911,6 @@ class SetupFrame(tk.Frame):
         self.potentials = setup_dictionary['potentials']
         self.currents = setup_dictionary['currents']
         self.segment_dictionary = setup_dictionary['segments']
-        for segment in self.segment_dictionary:
-            print('Segment %d' % segment,self.segment_dictionary[segment][1])
         self.forwards = setup_dictionary['forwards']
         self.reverse = setup_dictionary['reverse']
         self.data_dict = setup_dictionary['data']
@@ -1577,7 +1576,6 @@ class RealTimeManipulationFrame(tk.Frame):
             for figure in figures:
                 fig, self.ax = figure
                 electrode = electrode_list[fig_count]
-                print(fig_count,electrode_list)
                 anim.append(ElectrochemicalAnimation(fig, self.ax, electrode, resize_interval = resize_interval, fargs=None))
                 fig_count += 1
 
@@ -1787,21 +1785,21 @@ class InitializeFigureCanvas():
         ### Set axis labels ###
         #######################
         #-- Cyclic Voltammogram Plot --#
-        ax[0,0].set_ylabel('Current\n(µA)',fontweight='bold')
-        ax[0,0].set_xlabel('Potential (V)')
+        ax[0,0].set_ylabel('Current/µA',fontweight='bold')
+        ax[0,0].set_xlabel('Potential/V')
 
         #-- PHE/AUC Plot --#
         ax[0,1].set_xlabel('File Number')
         if SelectedOptions == 'Peak Height Extraction':
-            ax[0,1].set_ylabel('Peak Height\n(µA)',fontweight='bold')
+            ax[0,1].set_ylabel('Peak Height/µA',fontweight='bold')
         elif SelectedOptions == 'Area Under the Curve':
-            ax[0,1].set_ylabel('AUC (µC)',fontweight='bold')
+            ax[0,1].set_ylabel('AUC/µC',fontweight='bold')
 
         #-- User-specified voltage Plots --#
-        ax[1,0].set_xlabel('File #')    # Voltage 1
-        ax[1,1].set_xlabel('File #')    # Voltage 2
-        ax[1,0].set_ylabel('Current (µA)')  # Voltage 1
-        ax[1,1].set_ylabel('Current (µA)')  # Voltage 2
+        ax[1,0].set_xlabel('File Number')    # Voltage 1
+        ax[1,1].set_xlabel('File Number')    # Voltage 2
+        ax[1,0].set_ylabel('Current/µA')  # Voltage 1
+        ax[1,1].set_ylabel('Current/µA')  # Voltage 2
 
 
         #############################################
@@ -2537,6 +2535,9 @@ class ElectrochemicalAnimation():
             segment_currents = [currents[index] for index in index_list]
             segment_data[count] = [segment_potentials,segment_currents]
 
+            step_potential = segment_potentials[1] - segment_potentials[0]
+            print('Step Potential:',step_potential)
+
             adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
             adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
             adjusted_currents = [currents[index] for index in adjusted_index_list]
@@ -2609,7 +2610,22 @@ class ElectrochemicalAnimation():
 
                 polygon = Shape(vertices)
                 AUC = polygon.area/scan_rate
-                data = AUC
+                print('\nPolygon calculated AUC:',AUC)
+
+                AUC_index = 1
+                AUC3 = 0
+
+
+                while AUC_index <= len(adjusted_currents) - 1:
+                    AUC_height = (adjusted_currents[AUC_index] - linear_baseline[AUC_index])
+                    AUC_width = step_potential
+                    AUC3 += (AUC_height * AUC_width)
+                    AUC_index += 1
+
+                AUC3 = AUC3/scan_rate
+                print('Right Hand Reimann Sum AUC:',AUC3,'\n')
+
+                data = abs(AUC)
 
             #######################################
             ### Save the data into global lists ###
@@ -2928,11 +2944,11 @@ class PostAnalysis(tk.Frame):
             #####################
             ## Set the Y Label ##
             #####################
-            ax[0,0].set_ylabel('Current\n(µA)',fontweight='bold')
+            ax[0,0].set_ylabel('Current/µA',fontweight='bold')
             if SelectedOptions == 'Peak Height Extraction':
-                ax[1,0].set_ylabel('Peak Height\n(µA)',fontweight='bold')
+                ax[1,0].set_ylabel('Peak Height/µA',fontweight='bold')
             elif SelectedOptions == 'Area Under the Curve':
-                ax[1,0].set_ylabel('AUC (µC)',fontweight='bold')
+                ax[1,0].set_ylabel('AUC/µC',fontweight='bold')
             ax[2,0].set_ylabel('Normalized', fontweight='bold')
 
             fig.canvas.draw_idle()
