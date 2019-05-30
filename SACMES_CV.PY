@@ -2583,6 +2583,10 @@ class ElectrochemicalAnimation():
 
             #-- calculate the step potential --#
             step_potential = segment_potentials[1] - segment_potentials[0]
+            if step_potential < 0:
+                step = 'Negative'
+            elif step_potential > 0:
+                step = 'Positive'
 
             #############################################
             ### Adjust the potentials and currents to ###
@@ -2621,12 +2625,14 @@ class ElectrochemicalAnimation():
             if abs(max(adjusted_currents)) > abs(min(adjusted_currents)):
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+
+                print('%sPeak Potential:' % self.spacer,peak_potential)
+
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the minima for each besides --#
                 try:
                     vertex1 = min(adjusted_currents[:peak_index])
                     vertex2 = min(adjusted_currents[peak_index:])
-
 
                 except:
                     fit_half = int(len(adjusted_currents)/2)
@@ -2638,6 +2644,7 @@ class ElectrochemicalAnimation():
             elif abs(max(adjusted_currents)) < abs(min(adjusted_currents)):
                 peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+                print('%sPeak Potential:' % self.spacer,peak_potential)
 
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
@@ -2651,29 +2658,36 @@ class ElectrochemicalAnimation():
                     vertex2 = max(adjusted_currents[fit_half:])
 
             #-- Correlate the vertex currents to their potentials --#
+
+            vertex1_potentials = adjusted_potentials[:peak_index]
+            vertex2_potentials = adjusted_potentials[peak_index:]
             vertex1_potential = data_dict[vertex1]        # extract the associated potential
             vertex2_potential = data_dict[vertex2]
+
+            print('\n%sVertex1 Potential:',vertex1_potential)
+            print('\n%sVertex2 Potential:',vertex2_potential)
 
             if len(vertex1_potential) == 1:
                 vertex1_potential = vertex1_potential[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
             else:
                 list = []
-                for item in vertex1_potential:
-                    if low_voltage <= item <= high_voltage:
-                        list.append(item)
+                for vertex in vertex1_potential:
+                    if min(vertex1_potentials) <= vertex <= max(vertex1_potentials):
+                        list.append(vertex)
 
                 vertex1_potential = list[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
+
 
             if len(vertex2_potential) == 1:
                 vertex2_potential = vertex2_potential[0]
                 index2 = potential_dict[vertex2_potential] - adjusted_index_list[0] # and the index value
             else:
                 list = []
-                for item in vertex2_potential:
-                    if low_voltage <= item <= high_voltage:
-                        list.append(item)
+                for vertex in vertex2_potential:
+                    if min(vertex2_potentials) <= vertex <= max(vertex2_potentials):
+                        list.append(vertex)
                 vertex2_potential = list[0]
 
                 index2 = potential_dict[vertex2_potential] - adjusted_index_list[0] # and the index value
