@@ -724,7 +724,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
 
     def FindFile(self, parent):
-        global FilePath, ExportPath, FoundFilePath, NoSelectedPath
+        global FilePath, ExportPath, FoundFilePath, NoSelectedPath, DataFolder
 
         try:
 
@@ -848,7 +848,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
     ### they have, initialize the program                             ###
     #####################################################################
     def CheckPoint(self):
-        global mypath, Option, SelectedOptions, FileHandle, AlreadyInitiated, delimeter
+        global mypath, Option, SelectedOptions, ExportFilePath, AlreadyInitiated, delimeter
 
         try:
             #--- check to see if the data analysis method has been selected by the user ---#
@@ -869,8 +869,8 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         #########################################################
         try:
             mypath = FilePath                       # file path
-            FileHandle = str(self.filehandle.get()) # handle for exported .txt file
-            FileHandle = ''.join(ExportPath + FileHandle)
+            ExportFilePath = str(self.filehandle.get()) # handle for exported .txt file
+            ExportFilePath = ''.join(ExportPath + FileHandle)
 
             if self.PathWarningExists:
                 self.NoSelectedPath.grid_forget()
@@ -3332,7 +3332,6 @@ class PostAnalysis(tk.Frame):
         ###################################################
         tk.Frame.__init__(self, self.parent)             # initialize the frame
 
-
         self.Title = tk.Label(self, text = 'Post Analysis', font=HUGE_FONT).grid(row=0,column=0,columnspan=2)
 
         DataAdjustmentFrame = tk.Frame(self, relief='groove',bd=3)
@@ -3452,37 +3451,6 @@ class PostAnalysis(tk.Frame):
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
-
-    def DataExportTopLevel(self):
-
-        self.win = tk.Toplevel()
-        self.win.wm_title("Post Analysis Data Export")
-
-        self.ExportTopLevelExists = True
-
-        self.ElectrodeLabel = tk.Label(self.win, text='Select Electrodes:', font=LARGE_FONT)
-        self.ElectrodeLabel.grid(row=1,column=0, sticky = 'nswe')
-        self.ElectrodeCount = Listbox(self.win, relief='groove', exportselection=0, width=10, font=LARGE_FONT, height=6, selectmode = 'multiple', bd=3)
-        self.ElectrodeCount.bind('<<ListboxSelect>>',self.ElectrodeCurSelect)
-        self.ElectrodeCount.grid(row=2,column=0,padx=10,sticky='nswe')
-        for electrode in electrode_list:
-            self.ElectrodeCount.insert(END, electrode)
-
-        #--- ListBox containing the frequencies given on line 46 (InputFrequencies) ---#
-
-        self.FrequencyLabel = tk.Label(self.win, text='Select Frequencies', font= LARGE_FONT)
-        self.FrequencyLabel.grid(row=1,column=1,padx=10)
-        self.FrequencyList = Listbox(self.win, relief='groove', exportselection=0, width=5, font=LARGE_FONT, height = 5, selectmode='multiple', bd=3)
-        self.FrequencyList.bind('<<ListboxSelect>>',self.FrequencyCurSelect)
-        self.FrequencyList.grid(row=2,column=1,padx=10,sticky='nswe')
-        for frequency in frequency_list:
-            self.FrequencyList.insert(END, frequency)
-
-        ExportData = tk.Button(self.win, text = 'Export Data', command = lambda: self.PostAnalysisDataExport())
-        ExportData.grid(row=3,column=0,columnspan=2)
-
-        CloseButton = tk.Button(self.win, text = 'Close', command = lambda: self.win.destroy())
-        CloseButton.grid(row=4,column=0,columnspan=2,pady=10)
 
 
     def ElectrodeCurSelect(self, evt):
@@ -3752,6 +3720,101 @@ class PostAnalysis(tk.Frame):
         if analysis_complete:
             post_analysis._adjust_data()
 
+
+    ######################################################
+    ### Data Export TopWindow and Associated Functions ###
+    ######################################################
+
+    def DataExportTopLevel(self):
+
+        self.win = tk.Toplevel()
+        self.win.wm_title("Post Analysis Data Export")
+
+        self.ExportTopLevelExists = True
+
+        ##############################################
+        ### Pack all of the widgets into the frame ###
+        ##############################################
+
+        #--- File Path ---#
+        self.SelectFilePath = ttk.Button(self.win, style = 'On.TButton', text = '%s' % DataFolder, command = lambda: self.FindFile(self.parent))
+        self.SelectFilePath.grid(row=0,column=0,columnspan=4)
+
+        self.NoSelectedPath = tk.Label(self, text = 'No File Path Selected', font = MEDIUM_FONT, fg = 'red')
+        self.PathWarningExists = False               # tracks the existence of a warning label
+
+        #--- File Handle Input ---#
+        HandleLabel = tk.Label(self.win, text='Exported File Handle:', font=LARGE_FONT)
+        HandleLabel.grid(row=4,column=0,columnspan=2)
+        self.filehandle = ttk.Entry(self.win)
+        self.filehandle.insert(END, )
+        self.filehandle.grid(row=5,column=0,columnspan=2,pady=5)
+
+        self.ElectrodeLabel = tk.Label(self.win, text='Select Electrodes:', font=LARGE_FONT)
+        self.ElectrodeLabel.grid(row=10,column=0, sticky = 'nswe')
+        self.ElectrodeCount = Listbox(self.win, relief='groove', exportselection=0, width=10, font=LARGE_FONT, height=6, selectmode = 'multiple', bd=3)
+        self.ElectrodeCount.bind('<<ListboxSelect>>',self.ElectrodeCurSelect)
+        self.ElectrodeCount.grid(row=11,column=0,padx=10,sticky='nswe')
+        for electrode in electrode_list:
+            self.ElectrodeCount.insert(END, electrode)
+
+        #--- ListBox containing the frequencies given on line 46 (InputFrequencies) ---#
+
+        self.FrequencyLabel = tk.Label(self.win, text='Select Frequencies', font= LARGE_FONT)
+        self.FrequencyLabel.grid(row=10,column=1,padx=10)
+        self.FrequencyList = Listbox(self.win, relief='groove', exportselection=0, width=5, font=LARGE_FONT, height = 5, selectmode='multiple', bd=3)
+        self.FrequencyList.bind('<<ListboxSelect>>',self.FrequencyCurSelect)
+        self.FrequencyList.grid(row=11,column=1,padx=10,sticky='nswe')
+        for frequency in frequency_list:
+            self.FrequencyList.insert(END, frequency)
+
+        ExportData = tk.Button(self.win, text = 'Export Data', command = lambda: self.PostAnalysisDataExport())
+        ExportData.grid(row=15,column=0,columnspan=2)
+
+        CloseButton = tk.Button(self.win, text = 'Close', command = lambda: self.win.destroy())
+        CloseButton.grid(row=16,column=0,columnspan=2,pady=10)
+
+
+    def FindFile(self, parent):
+        global FilePath, ExportPath, FoundFilePath, NoSelectedPath
+
+        try:
+
+            ### prompt the user to select a  ###
+            ### directory for  data analysis ###
+            FilePath = filedialog.askdirectory(parent = parent)
+            FilePath = ''.join(FilePath + '/')
+
+
+            ### Path for directory in which the    ###
+            ### exported .txt file will be placed  ###
+            ExportPath = FilePath.split('/')
+
+            #-- change the text of the find file button to the folder the user chose --#
+            DataFolder = '%s/%s' % (ExportPath[-3],ExportPath[-2])
+
+            self.SelectFilePath['style'] = 'On.TButton'
+            self.SelectFilePath['text'] = DataFolder
+
+
+            del ExportPath[-1]
+            del ExportPath[-1]
+            ExportPath = '/'.join(ExportPath)
+            ExportPath = ''.join(ExportPath + '/')
+
+            ## Indicates that the user has selected a File Path ###
+            FoundFilePath = True
+
+            if self.PathWarningExists:
+                self.NoSelectedPath['text'] = ''
+                self.NoSelectedPath.grid_forget()
+
+        except:
+            FoundFilePath = False
+            self.NoSelectedPath.grid(row=1,column=0,columnspan=4)
+            self.PathWarningExists = True
+
+
     def PostAnalysisDataExport(self):
 
         post_analysis_export = TextFileExport(electrodes=self.electrode_list, frequencies=self.frequency_list)
@@ -3954,7 +4017,7 @@ class TextFileExport():
         else:
             self.frequency_list = frequencies
 
-        self.TextFileHandle = FileHandle
+        self.TextFileHandle = ExportFilePath
 
         TxtList = []
         TxtList.append('File')
@@ -3996,7 +4059,7 @@ class TextFileExport():
             TxtList.append('AvgKDM')
             TxtList.append('KDM_STD')
 
-        with open(FileHandle,'w+',encoding='utf-8', newline = '') as input:
+        with open(self.TextFileHandle,'w+',encoding='utf-8', newline = '') as input:
             writer = csv.writer(input, delimiter = ' ')
             writer.writerow(TxtList)
 
