@@ -906,7 +906,7 @@ class CheckPoint():
 
 class SetupFrame(tk.Frame):
     def __init__(self, parent, controller):
-        global low_voltage,high_voltage
+        global low_voltage,high_voltage,CV_min,CV_max,data_min,data_max,V1_min,V1_max,V2_min,V2_max
 
         self.parent = parent
         self.controller = controller
@@ -950,7 +950,7 @@ class SetupFrame(tk.Frame):
         ##############################
         ### Forwards Segment Setup ###
         ##############################
-        self.ForwardsSegmentLabel = tk.Label(self, text = 'Select Forwards\nSegment').grid(row=2,column=0,padx=10,pady=5)
+        self.ForwardsSegmentLabel = tk.Label(self, text = 'Select Forward\nSegment').grid(row=2,column=0,padx=10,pady=5)
         self.ForwardsSegmentSelection = Listbox(self, relief='groove', exportselection=0, width=10, font=LARGE_FONT, height=6, selectmode = 'single', bd=3)
         self.ForwardsSegmentSelection.bind('<<ListboxSelect>>',self.ForwardsSelection)
         self.ForwardsSegmentSelection.grid(row=3,column=0,padx=10,sticky='nswe')
@@ -958,7 +958,7 @@ class SetupFrame(tk.Frame):
             self.ForwardsSegmentSelection.insert(END, segment)
 
         # row 4, column 1
-        self.NoForwardsSelection = tk.Label(self, text = 'Select Forwards Segment',fg='red')
+        self.NoForwardsSelection = tk.Label(self, text = 'Select Forward Segment',fg='red')
         self.ForwardsSelectionExists = False
         self.ForwardsWarning = False
 
@@ -1011,13 +1011,15 @@ class SetupFrame(tk.Frame):
         ##################################################
 
         #--- Container Frame ---#
-        self.SelectUniqueVoltages = tk.Frame(self)
-        self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=3,pady=10)
+        self.SelectUniqueVoltages = tk.Frame(self, relief = 'groove', bd=4)
+        self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=2,pady=10)
         #-----------------------#
 
-        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=0,column=0,padx=5,pady=5)
+        self.VoltageFrameLabel = tk.Label(self.SelectUniqueVoltages, text = 'Probe Voltages', font=LARGE_FONT).grid(row=0,column=0,columnspan=3,padx=5,pady=5)
+
+        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=1,column=0,padx=5,pady=5)
         self.Voltage1 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage1.grid(row=1,column=0,padx=5,pady=5)
+        self.Voltage1.grid(row=2,column=0,padx=5,pady=5)
 
         self.Voltage1Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage1Warning = False
@@ -1027,9 +1029,9 @@ class SetupFrame(tk.Frame):
         else:
             self.Voltage1Exists = True
 
-        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=0,column=1,padx=5,pady=5)
+        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=1,column=1,padx=5,pady=5)
         self.Voltage2 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage2.grid(row=1,column=1,padx=5,pady=5)
+        self.Voltage2.grid(row=2,column=1,padx=5,pady=5)
 
         self.Voltage2Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage2Warning = False
@@ -1043,6 +1045,7 @@ class SetupFrame(tk.Frame):
         if AlreadyReset:
             self.Voltage1.insert(END,Voltage1)
             self.Voltage2.insert(END,Voltage2)
+
 
         self.SelectVoltages = tk.Button(self.SelectUniqueVoltages, text = 'Select Voltages',font=MEDIUM_FONT, command = lambda: self.SelectVoltagesFunction())
         self.SelectVoltages.grid(row=3,column=0,columnspan=2,pady=5,padx=5)
@@ -1061,6 +1064,17 @@ class SetupFrame(tk.Frame):
         AdjustmentFrame.columnconfigure(2, weight=1)
         AdjustmentFrame.columnconfigure(3, weight=1)
 
+        if not AlreadyReset:
+            CV_min = 2
+            CV_max = 2
+            data_min = 1
+            data_max = 1
+            V1_min = 2
+            V1_max = 2
+            V2_min = 2
+            V2_max = 2
+
+
         #--- Y Limit Adjustment Variables ---#
         self.y_limit_parameter_label = tk.Label(AdjustmentFrame, text = 'Select Y Limit Parameters',font=LARGE_FONT)
         self.y_limit_parameter_label.grid(row=0,column=0,columnspan=4,pady=5,padx=5)
@@ -1069,56 +1083,56 @@ class SetupFrame(tk.Frame):
         self.CV_min_parameter_label = tk.Label(AdjustmentFrame, text = 'Raw Min. Factor',font=MEDIUM_FONT)
         self.CV_min_parameter_label.grid(row=1,column=0)
         self.CV_min = tk.Entry(AdjustmentFrame, width=5)
-        self.CV_min.insert(END, '2')                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
+        self.CV_min.insert(END, CV_min)                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
         self.CV_min.grid(row=2,column=0,padx=5,pady=2,ipadx=2)
 
         #--- Cyclic Voltammogram Parameter Adjustment ---#
         self.CV_max_parameter_label = tk.Label(AdjustmentFrame, text = 'Raw Max. Factor',font=MEDIUM_FONT)
         self.CV_max_parameter_label.grid(row=3,column=0)
         self.CV_max = tk.Entry(AdjustmentFrame, width=5)
-        self.CV_max.insert(END, '2')                      # initial max is max_current + (2*max_currente)
+        self.CV_max.insert(END, CV_max)                      # initial max is max_current + (2*max_currente)
         self.CV_max.grid(row=4,column=0,padx=5,pady=2,ipadx=2)
 
         #--- Raw Data Minimum Parameter Adjustment ---#
         self.data_min_parameter_label = tk.Label(AdjustmentFrame, text = 'Data Min. Factor',font=MEDIUM_FONT)
         self.data_min_parameter_label.grid(row=1,column=1)
         self.data_min = tk.Entry(AdjustmentFrame, width=5)
-        self.data_min.insert(END, '1')                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
+        self.data_min.insert(END, data_min)                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
         self.data_min.grid(row=2,column=1,padx=5,pady=2,ipadx=2)
 
         #--- Raw Data Maximum Parameter Adjustment ---#
         self.data_max_parameter_label = tk.Label(AdjustmentFrame, text = 'Data Max. Factor',font=MEDIUM_FONT)
         self.data_max_parameter_label.grid(row=3,column=1)
         self.data_max = tk.Entry(AdjustmentFrame, width=5)
-        self.data_max.insert(END, '1')                      # initial max is max_current + (2*max_currente)
+        self.data_max.insert(END, data_max)                      # initial max is max_current + (2*max_currente)
         self.data_max.grid(row=4,column=1,padx=5,pady=2,ipadx=2)
 
         #--- Voltage 1 Minimum Parameter Adjustment ---#
         self.V1_min_parameter_label = tk.Label(AdjustmentFrame, text = 'V1 Min. Factor',font=MEDIUM_FONT)
         self.V1_min_parameter_label.grid(row=1,column=2)
         self.V1_min = tk.Entry(AdjustmentFrame, width=5)
-        self.V1_min.insert(END, '2')                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
+        self.V1_min.insert(END, V1_min)                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
         self.V1_min.grid(row=2,column=2,padx=5,pady=2,ipadx=2)
 
         #--- Voltage 1 Maximum Parameter Adjustment ---#
         self.V1_max_parameter_label = tk.Label(AdjustmentFrame, text = 'V1 Max. Factor',font=MEDIUM_FONT)
         self.V1_max_parameter_label.grid(row=3,column=2)
         self.V1_max = tk.Entry(AdjustmentFrame, width=5)
-        self.V1_max.insert(END, '2')                      # initial max is max_current + (2*max_currente)
+        self.V1_max.insert(END, V1_max)                      # initial max is max_current + (2*max_currente)
         self.V1_max.grid(row=4,column=2,padx=5,pady=2,ipadx=2)
 
         #--- Voltage 2 Minimum Parameter Adjustment ---#
         self.V2_min_parameter_label = tk.Label(AdjustmentFrame, text = 'V2 Min. Factor',font=MEDIUM_FONT)
         self.V2_min_parameter_label.grid(row=1,column=3)
         self.V2_min = tk.Entry(AdjustmentFrame, width=5)
-        self.V2_min.insert(END, '2')                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
+        self.V2_min.insert(END, V1_min)                   # initial minimum is set to minimum current - (2*minimum_current) (baseline) of file 1
         self.V2_min.grid(row=2,column=3,padx=5,pady=2,ipadx=2)
 
         #--- Voltage 2 Maximum Parameter Adjustment ---#
         self.V2_max_parameter_label = tk.Label(AdjustmentFrame, text = 'V2 Max. Factor',font=MEDIUM_FONT)
         self.V2_max_parameter_label.grid(row=3,column=3)
         self.V2_max = tk.Entry(AdjustmentFrame, width=5)
-        self.V2_max.insert(END, '2')                      # initial max is max_current + (2*max_currente)
+        self.V2_max.insert(END, V2_max)                      # initial max is max_current + (2*max_currente)
         self.V2_max.grid(row=4,column=3,padx=5,pady=2,ipadx=2)
         self.ResetButton = tk.Button(self, text = 'Reset', font=LARGE_FONT, width=7, command = lambda: self.Reset())
         self.ResetButton.grid(row=10,column=0,pady=5,padx=5)
@@ -1299,7 +1313,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage2Error['text'] = 'Voltage 2 not in\nboth segments'
-            self.Voltage2Error.grid(row=2,column=1)
+            self.Voltage2Error.grid(row=3,column=1)
             self.Voltage2Warning = True
 
             if self.Voltage2Exists:
@@ -1370,7 +1384,7 @@ class SetupFrame(tk.Frame):
             if self.Voltage2Warning:
                 self.Voltage2Error.grid_forget()
         else:
-            self.Voltage2Error.grid(row=2,column=1)
+            self.Voltage2Error.grid(row=3,column=1)
             self.Voltage2Warning = True
 
             passkey = False
