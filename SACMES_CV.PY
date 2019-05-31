@@ -911,7 +911,7 @@ class CheckPoint():
 
 class SetupFrame(tk.Frame):
     def __init__(self, parent, controller):
-        global low_voltage,high_voltage,global low_voltage,high_voltage,CV_min,CV_max,data_min,data_max,V1_min,V1_max,V2_min,V2_max
+        global low_voltage,high_voltage,CV_min,CV_max,data_min,data_max,V1_min,V1_max,V2_min,V2_max
 
         self.parent = parent
         self.controller = controller
