@@ -162,6 +162,8 @@ def _retrieve_file(file, electrode):
         filename = 'E%s_%s_%d.txt' % (electrode,handle_variable,file)
         filename2 = 'E%s_%s__%d.txt' % (electrode,handle_variable,file)
 
+    print('%s\n%s\n' % (filename, filename2))
+
     return filename, filename2
 
 
@@ -310,6 +312,7 @@ def ReadData(myfile, electrode):
             list_num += 1
 
 
+        print(segment_dictionary[1][2])
         #-- Return the data --#
         return potentials, currents, segment_dictionary, forwards_dictionary, reverse_dictionary
 
@@ -820,10 +823,12 @@ class CheckPoint():
         myfile2 = mypath + filename2               ### path of your file
 
         try:
+            print('Looking for %s' % myfile)
             mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
 
         except:
             try:
+                print('Looking for %s' % myfile2)
                 mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
                 myfile = myfile2
             except:
@@ -1011,15 +1016,13 @@ class SetupFrame(tk.Frame):
         ##################################################
 
         #--- Container Frame ---#
-        self.SelectUniqueVoltages = tk.Frame(self, relief = 'groove', bd=4)
-        self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=2,pady=10)
+        self.SelectUniqueVoltages = tk.Frame(self, relief='groove',bd=4)
+        self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=3,pady=10)
         #-----------------------#
 
-        self.VoltageFrameLabel = tk.Label(self.SelectUniqueVoltages, text = 'Probe Voltages', font=LARGE_FONT).grid(row=0,column=0,columnspan=3,padx=5,pady=5)
-
-        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=1,column=0,padx=5,pady=5)
+        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=0,column=0,padx=5,pady=5)
         self.Voltage1 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage1.grid(row=2,column=0,padx=5,pady=5)
+        self.Voltage1.grid(row=1,column=0,padx=5,pady=5)
 
         self.Voltage1Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage1Warning = False
@@ -1029,9 +1032,9 @@ class SetupFrame(tk.Frame):
         else:
             self.Voltage1Exists = True
 
-        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=1,column=1,padx=5,pady=5)
+        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=0,column=1,padx=5,pady=5)
         self.Voltage2 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage2.grid(row=2,column=1,padx=5,pady=5)
+        self.Voltage2.grid(row=1,column=1,padx=5,pady=5)
 
         self.Voltage2Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage2Warning = False
@@ -1045,7 +1048,6 @@ class SetupFrame(tk.Frame):
         if AlreadyReset:
             self.Voltage1.insert(END,Voltage1)
             self.Voltage2.insert(END,Voltage2)
-
 
         self.SelectVoltages = tk.Button(self.SelectUniqueVoltages, text = 'Select Voltages',font=MEDIUM_FONT, command = lambda: self.SelectVoltagesFunction())
         self.SelectVoltages.grid(row=3,column=0,columnspan=2,pady=5,padx=5)
@@ -1313,7 +1315,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage2Error['text'] = 'Voltage 2 not in\nboth segments'
-            self.Voltage2Error.grid(row=3,column=1)
+            self.Voltage2Error.grid(row=2,column=1)
             self.Voltage2Warning = True
 
             if self.Voltage2Exists:
@@ -1384,7 +1386,7 @@ class SetupFrame(tk.Frame):
             if self.Voltage2Warning:
                 self.Voltage2Error.grid_forget()
         else:
-            self.Voltage2Error.grid(row=3,column=1)
+            self.Voltage2Error.grid(row=2,column=1)
             self.Voltage2Warning = True
 
             passkey = False
@@ -2094,10 +2096,13 @@ class InitializeFigureCanvas():
         #########################
         ### Retrieve the data ###
         #########################
+        print('Create Setup')
         filename, filename2 = _retrieve_file(1,6)
 
         myfile = mypath + filename               ### path of your file
         myfile2 = mypath + filename2               ### path of your file
+        print('b')
+        print(myfile2)
         try:
             mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
 
@@ -2105,7 +2110,9 @@ class InitializeFigureCanvas():
 
             try:
                 mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                print('a')
                 if mydata_bytes > 1000:
+                    print('Found %s' % myfile2)
                     myfile = myfile2
             except:
                 mydata_bytes = 1
@@ -2556,6 +2563,8 @@ class ElectrochemicalAnimation():
         baseline_data = {}
         vertex_data = {}
 
+        print('%sElectrode Genertor %s ' % (self.spacer,self.electrode))
+
         ########################################
         ### Iterate through the two segments ###
         ########################################
@@ -2563,11 +2572,13 @@ class ElectrochemicalAnimation():
 
             #-- 1st, forwards --#
             if count == 'forwards':
+                print('\n%sFORWARDS' % self.spacer)
                 segment = forwards_segment
                 color = 'g'
 
             #-- 2nd, reverse --#
             elif count == 'reverse':
+                print('\n%sReverse' % self.spacer)
                 segment = reverse_segment
                 color = 'r'
 
@@ -2583,6 +2594,10 @@ class ElectrochemicalAnimation():
 
             #-- calculate the step potential --#
             step_potential = segment_potentials[1] - segment_potentials[0]
+            if step_potential < 0:
+                step = 'Negative'
+            elif step_potential > 0:
+                step = 'Positive'
 
             #############################################
             ### Adjust the potentials and currents to ###
@@ -2621,15 +2636,18 @@ class ElectrochemicalAnimation():
             if abs(max(adjusted_currents)) > abs(min(adjusted_currents)):
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+
+                print('%sPeak Potential:' % self.spacer,peak_potential)
+
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the minima for each besides --#
                 try:
                     vertex1 = min(adjusted_currents[:peak_index])
                     vertex2 = min(adjusted_currents[peak_index:])
 
-
                 except:
                     fit_half = int(len(adjusted_currents)/2)
+                    print('Fit Half: %d' % fit_half,type(fit_half))
                     vertex1 = min(adjusted_currents[:fit_half])
                     vertex2 = min(adjusted_currents[fit_half:])
 
@@ -2637,6 +2655,7 @@ class ElectrochemicalAnimation():
             elif abs(max(adjusted_currents)) < abs(min(adjusted_currents)):
                 peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+                print('%sPeak Potential:' % self.spacer,peak_potential)
 
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
@@ -2650,29 +2669,36 @@ class ElectrochemicalAnimation():
                     vertex2 = max(adjusted_currents[fit_half:])
 
             #-- Correlate the vertex currents to their potentials --#
+
+            vertex1_potentials = adjusted_potentials[:peak_index]
+            vertex2_potentials = adjusted_potentials[peak_index:]
             vertex1_potential = data_dict[vertex1]        # extract the associated potential
             vertex2_potential = data_dict[vertex2]
+
+            print('\n%sVertex1 Potential:',vertex1_potential)
+            print('\n%sVertex2 Potential:',vertex2_potential)
 
             if len(vertex1_potential) == 1:
                 vertex1_potential = vertex1_potential[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
             else:
                 list = []
-                for item in vertex1_potential:
-                    if low_voltage <= item <= high_voltage:
-                        list.append(item)
+                for vertex in vertex1_potential:
+                    if min(vertex1_potentials) <= vertex <= max(vertex1_potentials):
+                        list.append(vertex)
 
                 vertex1_potential = list[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
+
 
             if len(vertex2_potential) == 1:
                 vertex2_potential = vertex2_potential[0]
                 index2 = potential_dict[vertex2_potential] - adjusted_index_list[0] # and the index value
             else:
                 list = []
-                for item in vertex2_potential:
-                    if low_voltage <= item <= high_voltage:
-                        list.append(item)
+                for vertex in vertex2_potential:
+                    if min(vertex2_potentials) <= vertex <= max(vertex2_potentials):
+                        list.append(vertex)
                 vertex2_potential = list[0]
 
                 index2 = potential_dict[vertex2_potential] - adjusted_index_list[0] # and the index value
@@ -2689,6 +2715,9 @@ class ElectrochemicalAnimation():
             #####################################
             ### Area under the Curve vertices ###
             #####################################
+
+            print('\n%sFile %d Vertex 1:' % (self.spacer,self.index+1),vertex1_potential)
+            print('\n%sFile %d Vertex 2:' % (self.spacer,self.index+1),vertex2_potential)
 
             vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
             vertex_data[count] = vertices
