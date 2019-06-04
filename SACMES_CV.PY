@@ -698,7 +698,9 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         try:
             mypath = FilePath                       # file path
             FileHandle = str(self.filehandle.get()) # handle for exported .txt file
+            print('Init FileHandle: %s' % FileHandle)
             FileHandle = ''.join(ExportPath + FileHandle)
+            print('Init FileHandle 2: %s' % FileHandle)
 
             if self.PathWarningExists:
                 self.NoSelectedPath.grid_forget()
@@ -3413,9 +3415,9 @@ class Track():
 ##################################
 class TextFileExport():
 
-    ###############################
+    ################################
     ### Initialize the .txt file ###
-    ###############################
+    ################################
     def __init__(self, electrodes=None):
 
         if electrodes is None:
@@ -3446,7 +3448,9 @@ class TextFileExport():
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.')
+            print('Local File Handle 1:',LocalFileHandle)
             LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % electrode + '.txt')
+            print('Local File Handle 2:',LocalFileHandle)
             with open(LocalFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
                 writer.writerow(TxtList)
@@ -3476,7 +3480,9 @@ class TextFileExport():
             list.append(voltage2_data[num]['reverse'][index])
 
             LocalFileHandle = FileHandle.split('.')
+            print('RT Local File Handle 1:',LocalFileHandle)
             LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % (num+1) + '.txt')
+            print('RT Local File Handle 2:',LocalFileHandle)
             #--- Write the data into the .txt file ---#
             with open(LocalFileHandle,'a',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
