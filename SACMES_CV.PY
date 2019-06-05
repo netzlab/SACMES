@@ -2209,23 +2209,41 @@ class InitializeFigureCanvas():
 
                     local_data_list.append(data)
 
-            ###########################
-            ## Set the X and Y Axes ###
-            ###########################
-            ### Cyclic Voltammogram Plot ###
-            ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
-            ax[0,0].set_ylim(MIN_CURRENT-(abs(MIN_CURRENT)*CV_min),MAX_CURRENT+(CV_max*abs(MAX_CURRENT)))                   # voltammogram
+###########################
+## Set the X and Y Axes ###
+###########################
 
-            ### PHE/AUC Plot Y Limits ###
-            local_min = min(local_data_list)
-            local_max = max(local_data_list)
-            ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))                   # raw peak height
+### Cyclic Voltammogram Plot ###
 
-            #-- Voltage 1 Plot Y Limits --#
-            ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
+#-- set the x limits as the min and max potentials of the voltammogram
+ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
+#-- set the ylimits as the max/min of the currents plus/minus the
+#-- their absolute value times InputFrame global object 'CV_max/min'
+#-- value
+ax[0,0].set_ylim(MIN_CURRENT-(abs(MIN_CURRENT)*CV_min),MAX_CURRENT+(CV_max*abs(MAX_CURRENT)))   # voltammogram
 
-            #-- Voltage 2 Plot Y Limits --#
-            ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
+### PHE/AUC Plot Y Limits ###
+
+#- find the max/min of the Peah Height of the
+#- first file for the forwards and reverse scans
+#- local_data_list = [Peak_Height_forwards,Peak_Height_reverse]
+local_min = min(local_data_list)
+local_max = max(local_data_list)
+#-- set the ylimits as the max/min plus/minus the aboslute value
+#-- of their value times the InputFrame global objext 'data_max/min'
+ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
+
+### Probe VoltagePlots
+
+#-- Set Voltage 1 Plot Y Limits as the max/min of the forwards and
+#-- reverse currents for voltage 1 plus/minus the aboslute value
+#-- of their value times the InputFrame global objext 'data_max/min'
+ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
+
+#-- SetVoltage 2 Plot Y Limits as the max/min of the forwards and
+#-- reverse currents for voltage 2 plus/minus the aboslute value
+#-- of their value times the InputFrame global objext 'data_max/min'
+ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
 
             return True
 
