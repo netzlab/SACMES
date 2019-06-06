@@ -35,7 +35,7 @@ from matplotlib import style
 import scipy.integrate as integrate
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from shapely.geometry import Polygon as Shape
+#from shapely.geometry import Polygon as Shape
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -162,8 +162,6 @@ def _retrieve_file(file, electrode):
         filename = 'E%s_%s_%d.txt' % (electrode,handle_variable,file)
         filename2 = 'E%s_%s__%d.txt' % (electrode,handle_variable,file)
 
-    print('%s\n%s\n' % (filename, filename2))
-
     return filename, filename2
 
 
@@ -248,11 +246,12 @@ def ReadData(myfile, electrode):
 
         #-- find the initial step potential to determine the  --#
         #-- direction for forwards and reverse segments       --#
-        initial_step = potentials[list_num] - potentials[list_num-1]
+        initial_step = potentials[1] - potentials[0]
         if initial_step < 0:
             initial_step = 'Negative'
         else:
             initial_step = 'Positive'
+
 
         #-- place the potentials and currents into dictionaries --#
         #-- correlated to their respective segment              --#
@@ -263,6 +262,7 @@ def ReadData(myfile, electrode):
                 if step < 0:
                     step = 'Negative'
                     step_list.append(step)
+
 
                 else:
                     step = 'Positive'
@@ -305,12 +305,12 @@ def ReadData(myfile, electrode):
                     reverse_dictionary[segment_number][value] = list_num
 
 
+
             segment_dictionary[segment_number][0].append(list_num)
             segment_dictionary[segment_number][1][value] = list_num
             segment_dictionary[segment_number][2].setdefault(currents[list_num],[]).append(value)
 
             list_num += 1
-
 
         #-- Return the data --#
         return potentials, currents, segment_dictionary, forwards_dictionary, reverse_dictionary
@@ -698,9 +698,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         try:
             mypath = FilePath                       # file path
             FileHandle = str(self.filehandle.get()) # handle for exported .txt file
-            print('Init FileHandle: %s' % FileHandle)
             FileHandle = ''.join(ExportPath + FileHandle)
-            print('Init FileHandle 2: %s' % FileHandle)
 
             if self.PathWarningExists:
                 self.NoSelectedPath.grid_forget()
@@ -1019,11 +1017,13 @@ class SetupFrame(tk.Frame):
         #--- Container Frame ---#
         self.SelectUniqueVoltages = tk.Frame(self, relief='groove',bd=4)
         self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=3,pady=10)
+
+        self.SelectUniqueVoltagesTitle = tk.Label(self.SelectUniqueVoltages, text = 'Probe Voltages',font=LARGE_FONT).grid(row=0,column=0,columnspan=3,padx=5,pady=5)
         #-----------------------#
 
-        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=0,column=0,padx=5,pady=5)
+        self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=1,column=0,padx=5,pady=5)
         self.Voltage1 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage1.grid(row=1,column=0,padx=5,pady=5)
+        self.Voltage1.grid(row=2,column=0,padx=5,pady=5)
 
         self.Voltage1Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage1Warning = False
@@ -1033,9 +1033,9 @@ class SetupFrame(tk.Frame):
         else:
             self.Voltage1Exists = True
 
-        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=0,column=1,padx=5,pady=5)
+        self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=1,column=1,padx=5,pady=5)
         self.Voltage2 = tk.Entry(self.SelectUniqueVoltages, width=7)
-        self.Voltage2.grid(row=1,column=1,padx=5,pady=5)
+        self.Voltage2.grid(row=2,column=1,padx=5,pady=5)
 
         self.Voltage2Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage2Warning = False
@@ -1051,7 +1051,7 @@ class SetupFrame(tk.Frame):
             self.Voltage2.insert(END,Voltage2)
 
         self.SelectVoltages = tk.Button(self.SelectUniqueVoltages, text = 'Select Voltages',font=MEDIUM_FONT, command = lambda: self.SelectVoltagesFunction())
-        self.SelectVoltages.grid(row=3,column=0,columnspan=2,pady=5,padx=5)
+        self.SelectVoltages.grid(row=5,column=0,columnspan=2,pady=5,padx=5)
 
 
         #--- Create a frame that will contain all of the widgets ---#
@@ -1284,7 +1284,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage1Error['text'] = 'Voltage 1 not in\nboth segments'
-            self.Voltage1Error.grid(row=2,column=0)
+            self.Voltage1Error.grid(row=3,column=0)
             self.Voltage1Warning = True
 
             if self.Voltage1Exists:
@@ -1316,7 +1316,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage2Error['text'] = 'Voltage 2 not in\nboth segments'
-            self.Voltage2Error.grid(row=2,column=1)
+            self.Voltage2Error.grid(row=3,column=1)
             self.Voltage2Warning = True
 
             if self.Voltage2Exists:
@@ -1801,7 +1801,7 @@ class InitializeFigureCanvas():
         ######################################
         ### Create an initial setup figure ###
         ######################################
-        self.create_setup()
+        self.create_setup(electrode_list[0])
 
 
     ############################################
@@ -1947,7 +1947,7 @@ class InitializeFigureCanvas():
         self.list_val = _get_listval(electrode)
 
         try:
-
+            print('Initialize: Electrode %s' % str(electrode))
             filename, filename2 = _retrieve_file(1,electrode)
 
             myfile = mypath + filename               ### path of your file
@@ -2203,60 +2203,71 @@ class InitializeFigureCanvas():
 
                 elif SelectedOptions == 'Area Under the Curve':
 
-                    polygon = Shape(vertices)
-                    AUC = polygon.area/scan_rate
-                    data = AUC
+                    #polygon = Shape(vertices)
+                    #AUC = polygon.area/scan_rate
+                    #data = AUC
+
+                    AUC_index = 1
+                    AUC = 0
+
+                    while AUC_index < len(baseline_currents) - 1:
+                        AUC_height = (baseline_currents[AUC_index] - linear_baseline[AUC_index])
+                        AUC_width = step_potential
+                        AUC += (AUC_height * AUC_width)
+                        AUC_index += 1
+
+                    AUC = AUC/scan_rate
 
                     local_data_list.append(data)
 
-###########################
-## Set the X and Y Axes ###
-###########################
+            ###########################
+            ## Set the X and Y Axes ###
+            ###########################
 
-### Cyclic Voltammogram Plot ###
+            ### Cyclic Voltammogram Plot ###
 
-#-- set the x limits as the min and max potentials of the voltammogram
-ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
-#-- set the ylimits as the max/min of the currents plus/minus the
-#-- their absolute value times InputFrame global object 'CV_max/min'
-#-- value
-ax[0,0].set_ylim(MIN_CURRENT-(abs(MIN_CURRENT)*CV_min),MAX_CURRENT+(CV_max*abs(MAX_CURRENT)))   # voltammogram
+            #-- set the x limits as the min and max potentials of the voltammogram
+            ax[0,0].set_xlim(MIN_POTENTIAL,MAX_POTENTIAL)
+            #-- set the ylimits as the max/min of the currents plus/minus the
+            #-- their absolute value times InputFrame global object 'CV_max/min'
+            #-- value
+            ax[0,0].set_ylim(MIN_CURRENT-(abs(MIN_CURRENT)*CV_min),MAX_CURRENT+(CV_max*abs(MAX_CURRENT)))   # voltammogram
 
-### PHE/AUC Plot Y Limits ###
+            ### PHE/AUC Plot Y Limits ###
 
-#- find the max/min of the Peah Height of the
-#- first file for the forwards and reverse scans
-#- local_data_list = [Peak_Height_forwards,Peak_Height_reverse]
-local_min = min(local_data_list)
-local_max = max(local_data_list)
-#-- set the ylimits as the max/min plus/minus the aboslute value
-#-- of their value times the InputFrame global objext 'data_max/min'
-ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
+            #- find the max/min of the Peah Height of the
+            #- first file for the forwards and reverse scans
+            #- local_data_list = [Peak_Height_forwards,Peak_Height_reverse]
+            local_min = min(local_data_list)
+            local_max = max(local_data_list)
+            #-- set the ylimits as the max/min plus/minus the aboslute value
+            #-- of their value times the InputFrame global objext 'data_max/min'
+            ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
 
-### Probe VoltagePlots
+            ### Probe VoltagePlots
 
-#-- Set Voltage 1 Plot Y Limits as the max/min of the forwards and
-#-- reverse currents for voltage 1 plus/minus the aboslute value
-#-- of their value times the InputFrame global objext 'data_max/min'
-ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
+            #-- Set Voltage 1 Plot Y Limits as the max/min of the forwards and
+            #-- reverse currents for voltage 1 plus/minus the aboslute value
+            #-- of their value times the InputFrame global objext 'data_max/min'
+            ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
 
-#-- SetVoltage 2 Plot Y Limits as the max/min of the forwards and
-#-- reverse currents for voltage 2 plus/minus the aboslute value
-#-- of their value times the InputFrame global objext 'data_max/min'
-ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
+            #-- SetVoltage 2 Plot Y Limits as the max/min of the forwards and
+            #-- reverse currents for voltage 2 plus/minus the aboslute value
+            #-- of their value times the InputFrame global objext 'data_max/min'
+            ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
 
             return True
 
         except:
             print('\n\nError in RunInitialization\n\n')
 
-    def create_setup(self):
+    def create_setup(self,electrode):
         global setup_dictionary
 
         #########################
         ### Retrieve the data ###
         #########################
-        filename, filename2 = _retrieve_file(1,6)
+        filename, filename2 = _retrieve_file(1,electrode)
 
         myfile = mypath + filename               ### path of your file
         myfile2 = mypath + filename2               ### path of your file
@@ -2820,8 +2831,6 @@ class ElectrochemicalAnimation():
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
-                print('%sPeak Potential:' % self.spacer,peak_potential)
-
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the minima for each besides --#
                 try:
@@ -2830,7 +2839,6 @@ class ElectrochemicalAnimation():
 
                 except:
                     fit_half = int(len(adjusted_currents)/2)
-                    print('Fit Half: %d' % fit_half,type(fit_half))
                     vertex1 = min(adjusted_currents[:fit_half])
                     vertex2 = min(adjusted_currents[fit_half:])
 
@@ -2838,7 +2846,6 @@ class ElectrochemicalAnimation():
             elif sign_dictionary[count] == 'anodic':
                 peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
-                print('%sPeak Potential:' % self.spacer,peak_potential)
 
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
@@ -2859,9 +2866,6 @@ class ElectrochemicalAnimation():
 
             vertex1_potential = data_dict[vertex1]        # extract the associated potential
             vertex2_potential = data_dict[vertex2]
-
-            print('\n%sVertex1 Potential:' % self.spacer,vertex1_potential)
-            print('\n%sVertex2 Potential:' % self.spacer,vertex2_potential)
 
             if len(vertex1_potential) == 1:
                 vertex1_potential = vertex1_potential[0]
@@ -2901,9 +2905,6 @@ class ElectrochemicalAnimation():
             ### Area under the Curve vertices ###
             #####################################
 
-            print('\n%sFile %d Vertex 1:' % (self.spacer,self.index+1),vertex1_potential)
-            print('\n%sFile %d Vertex 2:' % (self.spacer,self.index+1),vertex2_potential)
-
             vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
             vertex_data[count] = vertices
 
@@ -2927,20 +2928,20 @@ class ElectrochemicalAnimation():
                 ##################################
 
                 #-- Create the Polygon to analyze AUC --#
-                polygon = Shape(vertices)
-                AUC = polygon.area/scan_rate
-                print('\nPolygon calculated AUC:',AUC)
+                #polygon = Shape(vertices)
+                #AUC = polygon.area/scan_rate
+                #print('\nPolygon calculated AUC:',AUC)
 
                 AUC_index = 1
-                AUC3 = 0
+                AUC = 0
 
                 while AUC_index < len(baseline_currents) - 1:
                     AUC_height = (baseline_currents[AUC_index] - linear_baseline[AUC_index])
                     AUC_width = step_potential
-                    AUC3 += (AUC_height * AUC_width)
+                    AUC += (AUC_height * AUC_width)
                     AUC_index += 1
 
-                AUC3 = AUC3/scan_rate
+                AUC = AUC/scan_rate
                 print('Reimann Sum calculated AUC:',AUC3)
 
                 data = abs(AUC)
@@ -3466,9 +3467,7 @@ class TextFileExport():
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.')
-            print('Local File Handle 1:',LocalFileHandle)
             LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % electrode + '.txt')
-            print('Local File Handle 2:',LocalFileHandle)
             with open(LocalFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
                 writer.writerow(TxtList)
@@ -3498,9 +3497,7 @@ class TextFileExport():
             list.append(voltage2_data[num]['reverse'][index])
 
             LocalFileHandle = FileHandle.split('.')
-            print('RT Local File Handle 1:',LocalFileHandle)
             LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % (num+1) + '.txt')
-            print('RT Local File Handle 2:',LocalFileHandle)
             #--- Write the data into the .txt file ---#
             with open(LocalFileHandle,'a',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
