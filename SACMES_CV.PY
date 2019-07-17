@@ -67,7 +67,7 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 
 #-- file handle variable --#
-handle_variable = 'T37 1hr Pre'    # default handle variable is nothing
+handle_variable = 'T37 500nM HxSH 15hr'    # default handle variable is nothing
 e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
 PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
@@ -108,6 +108,7 @@ delimiter = 1               ### default delimiter is a space; 2 = tab
 column_index = -2           ### column index for list_val.
                               # list_val = column_index + 3
                               # defauly column is the second (so index = 1)
+mass_transport = 'surface'
 
 ###############
 ### Styling ###
@@ -420,6 +421,29 @@ class MainWindow(tk.Tk):
         frame.grid(row=0, column=0, sticky = 'nsew')
         self.show_frame(InputFrame)
 
+        self._create_toolbar()
+
+    #--- Function to visualize different frames ---#
+    def _create_toolbar(self):
+
+        menubar = tk.Menu(self.master)
+        self.master.config(menu=menubar)
+
+        #################
+        ### Edit Menu ###
+        #################
+
+        transport_menu = tk.Menu(menubar)
+        transport_menu.add_command(label = "Solution Phase", command = lambda: self.mass_transport('solution'))
+        transport_menu.add_command(label="Surface Bound", command = lambda: self.mass_transport('surface'))
+        menubar.add_cascade(label='Mass Transport', menu=transport_menu)
+
+    def mass_transport(self, transport):
+        global mass_transport
+
+        mass_transport = transport
+
+        print('\nmass transport value = %s' % mass_transport)
 
     def show_frame(self, cont):
 
@@ -1751,7 +1775,7 @@ class VisualizationFrame(tk.Frame):
 
 class InitializeFigureCanvas():
     def __init__(self):
-        global text_file_export, voltage1_data, voltage2_data,electrode_count, anim, Frame, FrameReference, FileHandle, PlotContainer, data_list, plot_list, EmptyPlots, file_list, figures, frame_list, Plot, PlotFrames, PlotValues
+        global text_file_export, voltage1_data, voltage2_data,electrode_count, anim, Frame, FrameReference, FileHandle, PlotContainer, data_list, peak_data_list, plot_list, EmptyPlots, file_list, figures, frame_list, Plot, PlotFrames, PlotValues
 
         ##############################################
         ### Generate global lists for data storage ###
@@ -1771,11 +1795,17 @@ class InitializeFigureCanvas():
         data_list = [0]*electrode_count                             # Peak Height/AUC data (after smoothing and polynomial regression)
         avg_data_list = []                                          # Average Peak Height/AUC across all electrodes for each frequency
         std_data_list = []                                          # standard deviation between electrodes for each frequency
-
         for num in range(electrode_count):
             data_list[num] = {}
             for count in ['forwards','reverse']:
                 data_list[num][count] = [0]*numFiles                      # a data list for each eletrode
+
+        #-- Data for peak potentials --#
+        peak_data_list = [0]*electrode_count
+        for num in range(electrode_count):
+            peak_data_list[num] = {}
+            for count in ['forwards','reverse']:
+                peak_data_list[num][count] = [0]*numFiles                      # a data list for each eletrode
 
         #-- Data Stored for Voltage 1 --#
         voltage1_data = [0]*electrode_count
@@ -1813,8 +1843,8 @@ class InitializeFigureCanvas():
         ########################
         ### Setup the Figure ###
         ########################
-        fig, ax = plt.subplots(nrows=2,ncols=2,squeeze=False,figsize=(9,4.5))    ## figsize=(width, height)
-        plt.subplots_adjust(bottom=0.1,hspace=0.6,wspace=0.3)         ### adjust the spacing between subplots
+        fig, ax = plt.subplots(nrows=3,ncols=2,squeeze=False,figsize=(9,6))    ## figsize=(width, height)
+        plt.subplots_adjust(bottom=0.1,hspace=1.1,wspace=0.3)         ### adjust the spacing between subplots
 
         #---Set the electrode index value---#
         list_val = _get_listval(electrode)
@@ -1834,10 +1864,16 @@ class InitializeFigureCanvas():
             ax[0,1].set_ylabel('AUC/µC',fontweight='bold')
 
         #-- User-specified voltage Plots --#
-        ax[1,0].set_xlabel('File Number')    # Voltage 1
-        ax[1,1].set_xlabel('File Number')    # Voltage 2
-        ax[1,0].set_ylabel('Current/µA')  # Voltage 1
-        ax[1,1].set_ylabel('Current/µA')  # Voltage 2
+        ax[1,0].set_xlabel('File Number')   # Forwards Peak Potential Plot
+        ax[1,1].set_xlabel('File Number')   # Reverse Peak Potential Plot
+        ax[1,0].set_ylabel('Current/µA')    # Forwards Peak Potential Plot
+        ax[1,1].set_ylabel('Current/µA')    # Reverse Peak Potential Plot
+
+        #-- User-specified voltage Plots --#
+        ax[2,0].set_xlabel('File Number')    # Voltage 1
+        ax[2,1].set_xlabel('File Number')    # Voltage 2
+        ax[2,0].set_ylabel('Current/µA')  # Voltage 1
+        ax[2,1].set_ylabel('Current/µA')  # Voltage 2
 
 
         #############################################
@@ -1852,9 +1888,16 @@ class InitializeFigureCanvas():
         elif resize_interval <= numFiles:
             xlim_factor = resize_interval
 
+        #-- Raw PHE/AUC Data --#
         ax[0,1].set_xlim(-0.05,xlim_factor+0.1)
+
+        #-- Peak Potential Forwards and Reverse --#
         ax[1,0].set_xlim(-0.05,xlim_factor+0.1)
         ax[1,1].set_xlim(-0.05,xlim_factor+0.1)
+
+        #-- Probe Voltages 1 and 2 --#
+        ax[2,0].set_xlim(-0.05,xlim_factor+0.1)
+        ax[2,1].set_xlim(-0.05,xlim_factor+0.1)
 
         #################################################################################
         #################################################################################
@@ -1875,8 +1918,11 @@ class InitializeFigureCanvas():
         elif SelectedOptions == 'Area Under the Curve':
             ax[0,1].set_title('Area Under the Curve',fontweight='bold')
 
-        ax[1,0].set_title(''.join(str(Voltage1)+'V'))
-        ax[1,1].set_title(''.join(str(Voltage2)+'V'))
+        ax[1,0].set_title('Forwards Peak Potential')
+        ax[1,1].set_title('Reverse Peak Potential')
+
+        ax[2,0].set_title(''.join(str(Voltage1)+'V'))
+        ax[2,1].set_title(''.join(str(Voltage2)+'V'))
 
         #---Initiate the subplots---#
         # this assigns a Line2D artist object to the artist object (Axes)
@@ -1907,13 +1953,19 @@ class InitializeFigureCanvas():
         forwards_data, = ax[0,1].plot([],[],'go',Markersize=2,label='Forwards')
         reverse_data, = ax[0,1].plot([],[],'ro',Markersize=2,label='Reverse')
 
+        #-- Peak Potential Forwards --#
+        peak_forwards, = ax[1,0].plot([],[],'go',MarkerSize=1)
+
+        #-- Peak Potential Reverse --#
+        peak_reverse, = ax[1,1].plot([],[],'ro',MarkerSize=1)
+
         #-- Voltage 1 Artists --#
-        volt1_forwards, = ax[1,0].plot([],[],'go',MarkerSize=1)
-        volt1_reverse, = ax[1,0].plot([],[],'ro',MarkerSize=1)
+        volt1_forwards, = ax[2,0].plot([],[],'go',MarkerSize=1)
+        volt1_reverse, = ax[2,0].plot([],[],'ro',MarkerSize=1)
 
         #-- Voltage 2 Artists --#
-        volt2_forwards, = ax[1,1].plot([],[],'go',MarkerSize=1)
-        volt2_reverse, = ax[1,1].plot([],[],'ro',MarkerSize=1)
+        volt2_forwards, = ax[2,1].plot([],[],'go',MarkerSize=1)
+        volt2_reverse, = ax[2,1].plot([],[],'ro',MarkerSize=1)
 
         #ax[0,1].legend(bbox_to_anchor=(0., 0, 1.05, 105), bbox_transform=gcf().transFigure)
 
@@ -1924,7 +1976,7 @@ class InitializeFigureCanvas():
         #####################################################
 
         # this is the list that will be returned as _drawn_artists to the Funcanimation class
-        plots = [raw_forwards,adjusted_forwards,forwards_baseline,forwards_poly,raw_reverse,adjusted_reverse,reverse_baseline,reverse_poly,forwards_data,reverse_data,volt1_forwards,volt1_reverse,volt2_forwards,volt2_reverse,reverse_poly]
+        plots = [raw_forwards,adjusted_forwards,forwards_baseline,forwards_poly,raw_reverse,adjusted_reverse,reverse_baseline,reverse_poly,forwards_data,reverse_data,volt1_forwards,volt1_reverse,volt2_forwards,volt2_reverse,peak_forwards,peak_reverse]
 
         #--- And append that list to keep a global reference ---#
         electrode_frame = 'Electrode %s' % str(electrode)
@@ -2012,6 +2064,7 @@ class InitializeFigureCanvas():
             V1_data = []
             V2_data = []
             local_data_list = []
+            peak_potential_list = {}
 
 
             ########################################
@@ -2111,15 +2164,16 @@ class InitializeFigureCanvas():
                     peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
                     #-- Split the voltammogram before and after the peak  --#
-                    #-- potential and extract the minima for each besides --#
+                    #-- potential and extract the maxima for each besides --#
                     try:
+
                         vertex1 = min(adjusted_currents[:peak_index])
                         vertex2 = min(adjusted_currents[peak_index:])
-
                     except:
                         fit_half = int(len(adjusted_currents)/2)
                         vertex1 = min(adjusted_currents[:fit_half])
                         vertex2 = min(adjusted_currents[fit_half:])
+
 
                 #-- if the peak is negative (anodic) --#
                 elif sign_dictionary[count] == 'anodic':
@@ -2137,9 +2191,9 @@ class InitializeFigureCanvas():
                         vertex1 = max(adjusted_currents[:fit_half])
                         vertex2 = max(adjusted_currents[fit_half:])
 
+                peak_potential_list[count] = peak_potential
+
                 #-- Correlate the vertex currents to their potentials --#
-
-
                 vertex1_potentials = adjusted_potentials[:peak_index]
                 vertex2_potentials = adjusted_potentials[peak_index:]
 
@@ -2177,15 +2231,32 @@ class InitializeFigureCanvas():
                 baseline_potentials = adjusted_potentials[index1:index2]
 
                 #--- Create a linear baseline --#
-                linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+
+                #-- if it is a surface bound species --#
+                if mass_transport == 'surface':
+                    linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+
+                    vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
+                    vertex_data[count] = vertices
+
+                #-- if it is a solution phase species --#
+                elif mass_transport == 'solution':
+                    if sign_dictionary[count] == 'cathodic':
+                        vertex_current = min(vertex1,vertex2)
+                    elif sign_dictionary[count] == 'anodic':
+                        vertex_current = max(vertex1,vertex2)
+                    linear_baseline = [vertex_current]*len(baseline_currents)
+
+                    vertices = [(vertex1_potential,vertex_current), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex_current))]
+                    vertex_data[count] = vertices
+
                 baseline_data[count] = [baseline_potentials, linear_baseline]
 
                 #####################################
                 ### Area under the Curve vertices ###
                 #####################################
 
-                vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
-                vertex_data[count] = vertices
+
 
 
                 ################################################################
@@ -2202,10 +2273,6 @@ class InitializeFigureCanvas():
                 ########################################################
 
                 elif SelectedOptions == 'Area Under the Curve':
-
-                    #polygon = Shape(vertices)
-                    #AUC = polygon.area/scan_rate
-                    #data = AUC
 
                     AUC_index = 1
                     AUC = 0
@@ -2244,17 +2311,24 @@ class InitializeFigureCanvas():
             #-- of their value times the InputFrame global objext 'data_max/min'
             ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
 
-            ### Probe VoltagePlots
+            ### Peak Potential Plots ###
+            forwards_peak = peak_potential_list['forwards']
+            reverse_peak = peak_potential_list['reverse']
+            ax[1,0].set_ylim(forwards_peak-abs(data_min*forwards_peak),forwards_peak+abs(data_max*forwards_peak))
+            ax[1,1].set_ylim(reverse_peak-abs(data_min*reverse_peak),reverse_peak+abs(data_max*reverse_peak))
+
+
+            ### Probe VoltagePlots ###
 
             #-- Set Voltage 1 Plot Y Limits as the max/min of the forwards and
             #-- reverse currents for voltage 1 plus/minus the aboslute value
             #-- of their value times the InputFrame global objext 'data_max/min'
-            ax[1,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
+            ax[2,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
 
             #-- SetVoltage 2 Plot Y Limits as the max/min of the forwards and
             #-- reverse currents for voltage 2 plus/minus the aboslute value
             #-- of their value times the InputFrame global objext 'data_max/min'
-            ax[1,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
+            ax[2,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
 
             return True
 
@@ -2286,7 +2360,7 @@ class InitializeFigureCanvas():
         if mydata_bytes > 1000:
             potentials, currents, segment_dictionary, forwards, reverse = ReadData(myfile, 1)
 
-            fig = plt.figure(figsize=(9,4.5))
+            fig = plt.figure(figsize=(9,6))
             ax = fig.add_subplot(111)
 
             ax.set_xlim(min(potentials),max(potentials))
@@ -2500,8 +2574,12 @@ class ElectrochemicalAnimation():
         fig, ax = figures[self.num]
 
         ax[0,1].set_xlim(0,self.resize_limit+0.1)
+
         ax[1,1].set_xlim(0,self.resize_limit+0.1)
         ax[1,0].set_xlim(0,self.resize_limit+0.1)
+
+        ax[2,0].set_xlim(0,self.resize_limit+0.1)
+        ax[2,1].set_xlim(0,self.resize_limit+0.1)
 
 
         #####################################################
@@ -2719,14 +2797,15 @@ class ElectrochemicalAnimation():
         potentials, currents, segment_dictionary, forwards, reverse = ReadData(myfile, self.electrode)
 
 
-        ###################################################
-        ### Create local data dictionaries that will be ###
-        ### passed on to _animate to be visualized      ###
-        ###################################################
-        segment_data = {}
-        adjusted_segment_data = {}
-        baseline_data = {}
-        vertex_data = {}
+        ################################################
+        ### Create local data dictionaries for the   ###
+        ### cyclic voltammogram that will be passed  ###
+        ### on to _animate to be visualized          ###
+        ################################################
+        segment_data = {}            # Raw CV Potentials and Currents
+        adjusted_segment_data = {}   # Adjusted CV Potentials and Currents
+        baseline_data = {}           # Linear Baseline Currents
+        vertex_data = {}             # Linear Baseline Vertices
 
         print('%sElectrode Genertor %s ' % (self.spacer,self.electrode))
 
@@ -2822,17 +2901,15 @@ class ElectrochemicalAnimation():
             voltage1_data[self.num][count][self.index] = Voltage1_Current
             voltage2_data[self.num][count][self.index] = Voltage2_Current
 
-            ################################
-            ### Linear Baseline Creation ###
-            ################################
+            ##############################################################
+            ### Peak Potential Extraction and Linear Baseline Creation ###
+            ##############################################################
 
             #-- if the peak is positive (cathodic) --#
             if sign_dictionary[count] == 'cathodic':
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
-                #-- Split the voltammogram before and after the peak  --#
-                #-- potential and extract the minima for each besides --#
                 try:
                     vertex1 = min(adjusted_currents[:peak_index])
                     vertex2 = min(adjusted_currents[peak_index:])
@@ -2847,36 +2924,44 @@ class ElectrochemicalAnimation():
                 peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
-                #-- Split the voltammogram before and after the peak  --#
-                #-- potential and extract the maxima for each besides --#
                 try:
-
                     vertex1 = max(adjusted_currents[:peak_index])
                     vertex2 = max(adjusted_currents[peak_index:])
+
                 except:
                     fit_half = int(len(adjusted_currents)/2)
                     vertex1 = max(adjusted_currents[:fit_half])
                     vertex2 = max(adjusted_currents[fit_half:])
 
             #-- Correlate the vertex currents to their potentials --#
-
-
             vertex1_potentials = adjusted_potentials[:peak_index]
             vertex2_potentials = adjusted_potentials[peak_index:]
+
 
             vertex1_potential = data_dict[vertex1]        # extract the associated potential
             vertex2_potential = data_dict[vertex2]
 
+
+            #-- if multiple potentials correlate to the vertex --#
+            #-- then find  the closest to the peak potential   --#
             if len(vertex1_potential) == 1:
                 vertex1_potential = vertex1_potential[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
             else:
                 list = []
                 for vertex in vertex1_potential:
+                    #-- make sure the potential is first within the bounds  --#
+                    #-- given by the user for the adjusted potential window --#
                     if min(vertex1_potentials) <= vertex <= max(vertex1_potentials):
                         list.append(vertex)
 
-                vertex1_potential = list[0]
+                #-- find the closest to the peak potential --#
+                vertex1_check_list = {}
+                for vertex in list:
+                    check_value = abs(peak_potential - vertex)
+                    vertex1_check_list[check_value] = vertex
+                check_value = min(vertex1_check_list)
+                vertex1_potential = vertex1_check_list[check_value]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
 
 
@@ -2888,8 +2973,14 @@ class ElectrochemicalAnimation():
                 for vertex in vertex2_potential:
                     if min(vertex2_potentials) <= vertex <= max(vertex2_potentials):
                         list.append(vertex)
-                vertex2_potential = list[0]
 
+                #-- find the closest to the peak potential --#
+                vertex2_check_list = {}
+                for vertex in list:
+                    check_value = abs(peak_potential - vertex)
+                    vertex2_check_list[check_value] = vertex
+                check_value = min(vertex2_check_list)
+                vertex2_potential = vertex2_check_list[check_value]
                 index2 = potential_dict[vertex2_potential] - adjusted_index_list[0] # and the index value
 
 
@@ -2897,15 +2988,25 @@ class ElectrochemicalAnimation():
             baseline_currents = adjusted_currents[index1:index2]
             baseline_potentials = adjusted_potentials[index1:index2]
 
-            #--- Create a linear baseline --#
-            linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+
+            ### Create a linear baseline ###
+
+            #-- if it is a surface bound species --#
+            if mass_transport == 'surface':
+                linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+                vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
+
+            #-- if it is a solution phase species --#
+            elif mass_transport == 'solution':
+                if sign_dictionary[count] == 'cathodic':
+                    vertex_current = min(vertex1,vertex2)
+                elif sign_dictionary[count] == 'anodic':
+                    vertex_current = max(vertex1,vertex2)
+
+                linear_baseline = [vertex_current]*len(baseline_currents)
+                vertices = [(vertex1_potential,vertex_current), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex_current))]
+
             baseline_data[count] = [baseline_potentials, linear_baseline]
-
-            #####################################
-            ### Area under the Curve vertices ###
-            #####################################
-
-            vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
             vertex_data[count] = vertices
 
             ################################################################
@@ -2927,11 +3028,6 @@ class ElectrochemicalAnimation():
                 ### Curve using a Riemmann Sum  ###
                 ##################################
 
-                #-- Create the Polygon to analyze AUC --#
-                #polygon = Shape(vertices)
-                #AUC = polygon.area/scan_rate
-                #print('\nPolygon calculated AUC:',AUC)
-
                 AUC_index = 1
                 AUC = 0
 
@@ -2950,6 +3046,7 @@ class ElectrochemicalAnimation():
             ### Save the data into global lists ###
             #######################################
             data_list[self.num][count][self.index] = data
+            peak_data_list[self.num][count][self.index] = peak_potential
 
 
         #####################################################
@@ -2958,6 +3055,10 @@ class ElectrochemicalAnimation():
         return segment_data,adjusted_segment_data,baseline_data,vertex_data
 
 
+    ######################################################
+    ### Retrieve the processed data from the generator ###
+    ### and animate ('blit') it onto the artists       ###
+    ######################################################
     def _animate(self, framedata, *args):
 
         if key > 0:
@@ -3038,6 +3139,12 @@ class ElectrochemicalAnimation():
             #################
             plots[12].set_data(self.file_list,voltage2_data[self.num]['forwards'][:len(self.file_list)])
             plots[13].set_data(self.file_list,voltage2_data[self.num]['reverse'][:len(self.file_list)])
+
+            #######################
+            ### Peak Potentials ###
+            #######################
+            plots[14].set_data(self.file_list,peak_data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
+            plots[15].set_data(self.file_list,peak_data_list[self.num]['reverse'][:len(self.file_list)])   # Forwards
 
 
             print('\n%s %d %s_animate\n' % (self.spacer,self.electrode,self.spacer))
