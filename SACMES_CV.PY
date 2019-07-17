@@ -318,7 +318,7 @@ def ReadData(myfile, electrode):
     except:
         print('\n\nError in Read Data\n\n')
 
-def ClosestCurrentEstimation(voltage, potentials):
+def ClosestVoltageEstimation(voltage, potentials):
 
     ###################################################################
     ### Find the closest potential value to the user-inputted value ###
@@ -1263,7 +1263,7 @@ class SetupFrame(tk.Frame):
     def check_V1(self, voltage):
         global Voltage1
 
-        Voltage1 = ClosestCurrentEstimation(voltage,self.potentials)
+        Voltage1 = ClosestVoltageEstimation(voltage,self.potentials)
 
         passkey = True
         if self.ForwardsSelectionExists:
@@ -1295,7 +1295,7 @@ class SetupFrame(tk.Frame):
     def check_V2(self, voltage):
         global Voltage2
 
-        Voltage2 = ClosestCurrentEstimation(voltage,self.potentials)
+        Voltage2 = ClosestVoltageEstimation(voltage,self.potentials)
 
         passkey = True
         if self.ForwardsSelectionExists:
@@ -2087,8 +2087,8 @@ class InitializeFigureCanvas():
 
                 #-- if the user chose a value that does not --#
                 #-- exist, find the next closest value      --#
-                V1 = ClosestCurrentEstimation(Voltage1,segment_potentials)
-                V2 = ClosestCurrentEstimation(Voltage2,segment_potentials)
+                V1 = ClosestVoltageEstimation(Voltage1,segment_potentials)
+                V2 = ClosestVoltageEstimation(Voltage2,segment_potentials)
 
                 #-- find the associated index values --#
                 Voltage1_Index = potential_dict[V1]
@@ -2217,7 +2217,7 @@ class InitializeFigureCanvas():
                         AUC_index += 1
 
                     AUC = AUC/scan_rate
-
+                    data = AUC
                     local_data_list.append(data)
 
             ###########################
@@ -2807,8 +2807,8 @@ class ElectrochemicalAnimation():
 
             #-- if the user chose a value that does not --#
             #-- exist, find the next closest value      --#
-            V1 = ClosestCurrentEstimation(Voltage1,segment_potentials)
-            V2 = ClosestCurrentEstimation(Voltage2,segment_potentials)
+            V1 = ClosestVoltageEstimation(Voltage1,segment_potentials)
+            V2 = ClosestVoltageEstimation(Voltage2,segment_potentials)
 
             #-- find the associated index values --#
             Voltage1_Index = potential_dict[V1]
@@ -2942,7 +2942,7 @@ class ElectrochemicalAnimation():
                     AUC_index += 1
 
                 AUC = AUC/scan_rate
-                print('Reimann Sum calculated AUC:',AUC3)
+                print('Reimann Sum calculated AUC:',AUC)
 
                 data = abs(AUC)
 

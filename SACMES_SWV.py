@@ -869,7 +869,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         #########################################################
         try:
             mypath = FilePath                       # file path
-            ExportFilePath = str(self.filehandle.get()) # handle for exported .txt file
+            FileHandle = str(self.filehandle.get()) # handle for exported .txt file
             ExportFilePath = ''.join(ExportPath + FileHandle)
 
             if self.PathWarningExists:
