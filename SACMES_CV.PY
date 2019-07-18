@@ -433,15 +433,24 @@ class MainWindow(tk.Tk):
         ### Edit Menu ###
         #################
 
-        transport_menu = tk.Menu(menubar)
-        transport_menu.add_command(label = "Solution Phase", command = lambda: self.mass_transport('solution'))
-        transport_menu.add_command(label="Surface Bound", command = lambda: self.mass_transport('surface'))
-        menubar.add_cascade(label='Mass Transport', menu=transport_menu)
+        self.transport_menu = tk.Menu(menubar)
+        self.solution = self.transport_menu.add_command(label = "    Solution Phase", command = lambda: self.mass_transport('solution'))
+        self.surface = self.transport_menu.add_command(label="✓ Surface Bound", command = lambda: self.mass_transport('surface'))
+        menubar.add_cascade(label='Mass Transport', menu=self.transport_menu)
+
 
     def mass_transport(self, transport):
         global mass_transport
 
         mass_transport = transport
+
+        # Change the labels of the menu options #
+        if mass_transport == 'solution':
+            self.transport_menu.entryconfigure(0, label='✓ Solution Phase')
+            self.transport_menu.entryconfigure(1,label='    Surface Bound')
+        elif mass_transport == 'surface':
+            self.transport_menu.entryconfigure(0, label='    Solution Phase')
+            self.transport_menu.entryconfigure(2,label='✓ Surface Bound')
 
         print('\nmass transport value = %s' % mass_transport)
 
@@ -893,6 +902,13 @@ class CheckPoint():
         initialize = InitializeFigureCanvas()
 
 
+        ############################################################
+        ### Initialize the Initial Parameter Visualization Frame ###
+        ############################################################
+        frame = SetupVisualizationFrame(container, self)
+        ShowFrames[SetupVisualizationFrame] = frame
+        frame.grid(row=0,column=1,sticky='nsew')
+
         ####################################################
         ### Initialize the Initial Parameter Setup Frame ###
         ####################################################
@@ -900,12 +916,6 @@ class CheckPoint():
         ShowFrames[SetupFrame] = frame
         frame.grid(row=0, column=0, sticky='nsew')
 
-        ############################################################
-        ### Initialize the Initial Parameter Visualization Frame ###
-        ############################################################
-        frame = SetupVisualizationFrame(container, self)
-        ShowFrames[SetupVisualizationFrame] = frame
-        frame.grid(row=0,column=1,sticky='nsew')
 
         #---When initliazed, raise the Start Page and the plot for electrode one---#
         self.show_frame(SetupFrame)                  # raises the frame for initial parameter setup
@@ -982,8 +992,12 @@ class SetupFrame(tk.Frame):
         self.ForwardsSegmentSelection = Listbox(self, relief='groove', exportselection=0, width=10, font=LARGE_FONT, height=6, selectmode = 'single', bd=3)
         self.ForwardsSegmentSelection.bind('<<ListboxSelect>>',self.ForwardsSelection)
         self.ForwardsSegmentSelection.grid(row=3,column=0,padx=10,sticky='nswe')
+        self.forward_selection_dict = {}
+        count = 0
         for segment in self.forwards:
+            self.forward_selection_dict[segment] = count
             self.ForwardsSegmentSelection.insert(END, segment)
+            count += 1
 
         # row 4, column 1
         self.NoForwardsSelection = tk.Label(self, text = 'Select Forward Segment',fg='red')
@@ -997,8 +1011,13 @@ class SetupFrame(tk.Frame):
         self.ReverseSegmentSelection = Listbox(self, relief='groove', exportselection=0, width=10, font=LARGE_FONT, height=6, selectmode = 'single', bd=3)
         self.ReverseSegmentSelection.bind('<<ListboxSelect>>',self.ReverseSelection)
         self.ReverseSegmentSelection.grid(row=3,column=1,padx=10,sticky='nswe')
+        self.reverse_selection_dict = {}
+        count = 0
         for segment in self.reverse:
+            self.reverse_selection_dict[segment] = count
             self.ReverseSegmentSelection.insert(END, segment)
+            count += 1
+
 
         # row 4, column 0
         self.NoReverseSelection = tk.Label(self, text = 'Select Reverse Segment',fg='red')
@@ -1042,7 +1061,7 @@ class SetupFrame(tk.Frame):
         self.SelectUniqueVoltages = tk.Frame(self, relief='groove',bd=4)
         self.SelectUniqueVoltages.grid(row=6,column=0,columnspan=3,pady=10)
 
-        self.SelectUniqueVoltagesTitle = tk.Label(self.SelectUniqueVoltages, text = 'Probe Voltages',font=LARGE_FONT).grid(row=0,column=0,columnspan=3,padx=5,pady=5)
+        self.SelectUniqueVoltagesTitle = tk.Label(self.SelectUniqueVoltages, text = 'Voltage Probes',font=LARGE_FONT).grid(row=0,column=0,columnspan=3,padx=5,pady=5)
         #-----------------------#
 
         self.Voltage1Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 1', font=MEDIUM_FONT).grid(row=1,column=0,padx=5,pady=5)
@@ -1164,6 +1183,16 @@ class SetupFrame(tk.Frame):
         self.ResetButton = tk.Button(self, text = 'Reset', font=LARGE_FONT, width=7, command = lambda: self.Reset())
         self.ResetButton.grid(row=10,column=0,pady=5,padx=5)
 
+        if AlreadyReset:
+            self.ReverseSegmentSelection.select_set(self.reverse_selection_dict[reverse_segment]) #This only sets focus on the first item.
+            self.ReverseSegmentSelection.event_generate("<<ListboxSelect>>")
+
+            self.ForwardsSegmentSelection.select_set(self.forward_selection_dict[forwards_segment])
+            self.ForwardsSegmentSelection.event_generate("<<ListboxSelect>>")
+
+            self.ReverseSelection(None)
+            self.ForwardsSelection(None)
+
         #####################################
         ### Initialize Real Time Analysis ###
         #####################################
@@ -1283,6 +1312,10 @@ class SetupFrame(tk.Frame):
                 self.check_V2(Voltage2)
             except:
                 print('\nCould not retrieve voltage 2')
+
+        if self.ForwardsSelectionExists:
+            if self.ReverseSelectionExists:
+                self.blit_data(self.setup_artists)
 
     def check_V1(self, voltage):
         global Voltage1
@@ -1895,7 +1928,7 @@ class InitializeFigureCanvas():
         ax[1,0].set_xlim(-0.05,xlim_factor+0.1)
         ax[1,1].set_xlim(-0.05,xlim_factor+0.1)
 
-        #-- Probe Voltages 1 and 2 --#
+        #-- Voltage Probes 1 and 2 --#
         ax[2,0].set_xlim(-0.05,xlim_factor+0.1)
         ax[2,1].set_xlim(-0.05,xlim_factor+0.1)
 
@@ -1918,7 +1951,7 @@ class InitializeFigureCanvas():
         elif SelectedOptions == 'Area Under the Curve':
             ax[0,1].set_title('Area Under the Curve',fontweight='bold')
 
-        ax[1,0].set_title('Forwards Peak Potential')
+        ax[1,0].set_title('Forward Peak Potential')
         ax[1,1].set_title('Reverse Peak Potential')
 
         ax[2,0].set_title(''.join(str(Voltage1)+'V'))
