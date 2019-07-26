@@ -425,6 +425,7 @@ class MainWindow(tk.Tk):
 
     #--- Function to visualize different frames ---#
     def _create_toolbar(self):
+        global forward_boolean,reverse_boolean
 
         menubar = tk.Menu(self.master)
         self.master.config(menu=menubar)
@@ -438,6 +439,16 @@ class MainWindow(tk.Tk):
         self.surface = self.transport_menu.add_command(label="✓ Surface Bound", command = lambda: self.mass_transport('surface'))
         menubar.add_cascade(label='Mass Transport', menu=self.transport_menu)
 
+        self.visualization_menu = tk.Menu(menubar)
+
+        forward_boolean = tk.BooleanVar()
+        forward_boolean.set(True)
+        self.visualize_forward = self.visualization_menu.add_checkbutton(label='Forward Segment',onvalue=True,offvalue=False,variable=forward_boolean)
+
+        reverse_boolean = tk.BooleanVar()
+        reverse_boolean.set(True)
+        self.visualize_reverse = self.visualization_menu.add_checkbutton(label='Reverse Segment',onvalue=True,offvalue=False,variable=reverse_boolean)
+        menubar.add_cascade(label='Segment Visualization',menu=self.visualization_menu)
 
     def mass_transport(self, transport):
         global mass_transport
@@ -1018,7 +1029,6 @@ class SetupFrame(tk.Frame):
             self.ReverseSegmentSelection.insert(END, segment)
             count += 1
 
-
         # row 4, column 0
         self.NoReverseSelection = tk.Label(self, text = 'Select Reverse Segment',fg='red')
         self.ReverseSelectionExists = False
@@ -1227,11 +1237,12 @@ class SetupFrame(tk.Frame):
         if not self.ReverseSelectionExists:
             self.ReverseSelectionExists = True
 
-        if self.Voltage1Exists:
-            self.check_V1(Voltage1)
+        if self.reverse_segment is not None:
+            if self.Voltage1Exists:
+                self.check_V1(Voltage1)
 
-        if self.Voltage2Exists:
-            self.check_V2(Voltage2)
+            if self.Voltage2Exists:
+                self.check_V2(Voltage2)
 
         self.blit_data(self.setup_artists)
 
@@ -2065,6 +2076,7 @@ class InitializeFigureCanvas():
 
 
     def RunInitialization(self, myfile, ax, electrode):
+        global sign_dictionary
 
         try:
             ###################################
@@ -2109,13 +2121,27 @@ class InitializeFigureCanvas():
 
                 #-- 1st, forwards --#
                 if count == 'forwards':
-                    index_list = segment_dictionary[forwards_segment][0]
-                    f_initial = currents[index_list[0]]
+                    index_list, potential_dict, data_dict = segment_dictionary[forwards_segment]
+                    segment_potentials = [potentials[index] for index in index_list]
+                    segment_currents = [currents[index] for index in index_list]
+                    adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
+                    adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
+                    adjusted_currents = [currents[index] for index in adjusted_index_list]
+                    f_initial = adjusted_currents[0]
+                    print('Forward currents:',adjusted_currents)
+                    print('F Initial:',f_initial)
 
                 #-- 2nd, reverse --#
                 elif count == 'reverse':
-                    index_list = segment_dictionary[forwards_segment][0]
-                    r_initial = currents[index_list[0]]
+                    index_list, potential_dict, data_dict = segment_dictionary[reverse_segment]
+                    segment_potentials = [potentials[index] for index in index_list]
+                    segment_currents = [currents[index] for index in index_list]
+                    adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
+                    adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
+                    adjusted_currents = [currents[index] for index in adjusted_index_list]
+                    print('Reverse currents:',adjusted_currents)
+                    r_initial = adjusted_currents[0]
+                    print('R Initial:',r_initial)
 
             #- if the reverse scan is negative compared
             #- to the forwards scan, it is anodic and the
@@ -2135,7 +2161,6 @@ class InitializeFigureCanvas():
                 #-- 1st, forwards --#
                 if count == 'forwards':
                     segment = forwards_segment
-                    local_dictionary['forwards'] = segment
 
                 #-- 2nd, reverse --#
                 elif count == 'reverse':
@@ -2297,7 +2322,7 @@ class InitializeFigureCanvas():
                 ################################################################
 
                 if SelectedOptions == 'Peak Height Extraction':
-                    Peak_Height = max(adjusted_currents)-min(adjusted_currents)
+                    Peak_Height = abs(adjusted_currents[peak_index] - linear_baseline[peak_index])
                     data = Peak_Height
                     local_data_list.append(data)
 
@@ -2840,36 +2865,7 @@ class ElectrochemicalAnimation():
         baseline_data = {}           # Linear Baseline Currents
         vertex_data = {}             # Linear Baseline Vertices
 
-        print('%sElectrode Genertor %s ' % (self.spacer,self.electrode))
-
-        ########################################
-        ### Iterate through the two segments ###
-        ########################################
-
-        local_dictionary = {}
-        for count in ['forwards','reverse']:
-
-            #-- 1st, forwards --#
-            if count == 'forwards':
-                index_list = segment_dictionary[forwards_segment][0]
-                f_initial = currents[index_list[0]]
-
-            #-- 2nd, reverse --#
-            elif count == 'reverse':
-                index_list = segment_dictionary[forwards_segment][0]
-                r_initial = currents[index_list[0]]
-
-        #- if the reverse scan is negative compared
-        #- to the forwards scan, it is anodic and the
-        #- forwards is cathodic
-        sign_dictionary = {}
-        if r_initial < f_initial:
-            sign_dictionary['reverse'] = 'anodic'
-            sign_dictionary['forwards'] = 'cathodic'
-        #- and vice versa
-        else:
-            sign_dictionary['forwards'] = 'anodic'
-            sign_dictionary['reverse'] = 'cathodic'
+        print('%sElectrode Generator %s ' % (self.spacer,self.electrode))
 
         #-- initial analysis --#
         for count in ['forwards','reverse']:
@@ -2878,7 +2874,6 @@ class ElectrochemicalAnimation():
             if count == 'forwards':
                 print('\n%sFORWARDS' % self.spacer)
                 segment = forwards_segment
-                local_dictionary['forwards'] = segment
                 color = 'g'
 
             #-- 2nd, reverse --#
@@ -2941,6 +2936,7 @@ class ElectrochemicalAnimation():
             #-- if the peak is positive (cathodic) --#
             if sign_dictionary[count] == 'cathodic':
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
+                print('Cathodic Peak Potential:',peak_potential)
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
                 try:
@@ -2955,6 +2951,7 @@ class ElectrochemicalAnimation():
             #-- if the peak is negative (anodic) --#
             elif sign_dictionary[count] == 'anodic':
                 peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
+                print('Anodic Peak Potential:',peak_potential)
                 peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
 
                 try:
@@ -3047,7 +3044,8 @@ class ElectrochemicalAnimation():
             ################################################################
 
             if SelectedOptions == 'Peak Height Extraction':
-                Peak_Height = max(adjusted_currents)-min(adjusted_currents)
+                Peak_Height = abs(adjusted_currents[peak_index] - linear_baseline[peak_index])
+                print(Peak_Height)
                 data = Peak_Height
 
             ########################################################
@@ -3106,78 +3104,99 @@ class ElectrochemicalAnimation():
             ### and get the data that will be visualized                 ###
             ################################################################
             plots = plot_list[self.num]
+            print('Forwards:',forward_boolean.get())
+            self.forward_boolean = forward_boolean.get()
+            print('Reverse:',reverse_boolean.get())
+            self.reverse_boolean = reverse_boolean.get()
+            if self.forward_boolean:
+                ########################
+                ### Forwards Segment ###
+                ########################
+                #-- raw data --#
+                forwards_data = segment_data['forwards']
+                forwards_potentials = forwards_data[0]
+                forwards_currents = forwards_data[1]
 
-            ########################
-            ### Forwards Segment ###
-            ########################
-            #-- raw data --#
-            forwards_data = segment_data['forwards']
-            forwards_potentials = forwards_data[0]
-            forwards_currents = forwards_data[1]
+                #-- data adjusted to user chosen voltage range --#
+                adjusted_forwards_data = adjusted_segment_data['forwards']
+                adjusted_forwards_potentials = adjusted_forwards_data[0]
+                adjusted_forwards_currents = adjusted_forwards_data[1]
 
-            #-- data adjusted to user chosen voltage range --#
-            adjusted_forwards_data = adjusted_segment_data['forwards']
-            adjusted_forwards_potentials = adjusted_forwards_data[0]
-            adjusted_forwards_currents = adjusted_forwards_data[1]
+                #-- linear baseline data --#
+                forwards_baseline = baseline_data['forwards']
+                forwards_baseline_potentials = forwards_baseline[0]
+                forwards_baseline_currents = forwards_baseline[1]
 
-            #-- linear baseline data --#
-            forwards_baseline = baseline_data['forwards']
-            forwards_baseline_potentials = forwards_baseline[0]
-            forwards_baseline_currents = forwards_baseline[1]
+                #-- set the x and y data of the artists to be animated --#
+                plots[0].set_data(forwards_potentials,forwards_currents)
+                plots[1].set_data(adjusted_forwards_potentials,adjusted_forwards_currents)
+                plots[2].set_data(forwards_baseline_potentials,forwards_baseline_currents)
+                plots[3].set_xy(vertex_data['forwards'])
 
-            #-- set the x and y data of the artists to be animated --#
-            plots[0].set_data(forwards_potentials,forwards_currents)
-            plots[1].set_data(adjusted_forwards_potentials,adjusted_forwards_currents)
-            plots[2].set_data(forwards_baseline_potentials,forwards_baseline_currents)
-            plots[3].set_xy(vertex_data['forwards'])
+                #######################
+                ### Peak Height/AUC ###
+                #######################
+                plots[8].set_data(self.file_list,data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
 
-            #######################
-            ### Reverse Segment ###
-            #######################
-            #-- raw data --#
-            reverse_data = segment_data['reverse']
-            reverse_potentials = reverse_data[0]
-            reverse_currents = reverse_data[1]
+                #################
+                ### Voltage 1 ###
+                #################
+                plots[10].set_data(self.file_list,voltage1_data[self.num]['forwards'][:len(self.file_list)])
 
-            #-- data adjusted to user chosen voltage range --#
-            adjusted_reverse_data = adjusted_segment_data['reverse']
-            adjusted_reverse_potentials = adjusted_reverse_data[0]
-            adjusted_reverse_currents = adjusted_reverse_data[1]
+                #################
+                ### Voltage 2 ###
+                #################
+                plots[12].set_data(self.file_list,voltage2_data[self.num]['forwards'][:len(self.file_list)])
 
-            #-- linear baseline data --#
-            reverse_baseline = baseline_data['reverse']
-            reverse_baseline_potentials = reverse_baseline[0]
-            reverse_baseline_currents = reverse_baseline[1]
+                #######################
+                ### Peak Potentials ###
+                #######################
+                plots[14].set_data(self.file_list,peak_data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
 
-            #-- set the x and y data of the artists to be animated --#
-            plots[4].set_data(reverse_potentials,reverse_currents)
-            plots[5].set_data(adjusted_reverse_potentials,adjusted_reverse_currents)
-            plots[6].set_data(reverse_baseline_potentials,reverse_baseline_currents)
-            plots[7].set_xy(vertex_data['reverse'])
+            if self.reverse_boolean:
+                #######################
+                ### Reverse Segment ###
+                #######################
+                #-- raw data --#
+                reverse_data = segment_data['reverse']
+                reverse_potentials = reverse_data[0]
+                reverse_currents = reverse_data[1]
 
-            #######################
-            ### Peak Height/AUC ###
-            #######################
-            plots[8].set_data(self.file_list,data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
-            plots[9].set_data(self.file_list,data_list[self.num]['reverse'][:len(self.file_list)])   # Reverse
+                #-- data adjusted to user chosen voltage range --#
+                adjusted_reverse_data = adjusted_segment_data['reverse']
+                adjusted_reverse_potentials = adjusted_reverse_data[0]
+                adjusted_reverse_currents = adjusted_reverse_data[1]
 
-            #################
-            ### Voltage 1 ###
-            #################
-            plots[10].set_data(self.file_list,voltage1_data[self.num]['forwards'][:len(self.file_list)])
-            plots[11].set_data(self.file_list,voltage1_data[self.num]['reverse'][:len(self.file_list)])
+                #-- linear baseline data --#
+                reverse_baseline = baseline_data['reverse']
+                reverse_baseline_potentials = reverse_baseline[0]
+                reverse_baseline_currents = reverse_baseline[1]
 
-            #################
-            ### Voltage 2 ###
-            #################
-            plots[12].set_data(self.file_list,voltage2_data[self.num]['forwards'][:len(self.file_list)])
-            plots[13].set_data(self.file_list,voltage2_data[self.num]['reverse'][:len(self.file_list)])
+                #-- set the x and y data of the artists to be animated --#
+                plots[4].set_data(reverse_potentials,reverse_currents)
+                plots[5].set_data(adjusted_reverse_potentials,adjusted_reverse_currents)
+                plots[6].set_data(reverse_baseline_potentials,reverse_baseline_currents)
+                plots[7].set_xy(vertex_data['reverse'])
 
-            #######################
-            ### Peak Potentials ###
-            #######################
-            plots[14].set_data(self.file_list,peak_data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
-            plots[15].set_data(self.file_list,peak_data_list[self.num]['reverse'][:len(self.file_list)])   # Forwards
+                #######################
+                ### Peak Height/AUC ###
+                #######################
+                plots[9].set_data(self.file_list,data_list[self.num]['reverse'][:len(self.file_list)])   # Reverse
+
+                #################
+                ### Voltage 1 ###
+                #################
+                plots[11].set_data(self.file_list,voltage1_data[self.num]['reverse'][:len(self.file_list)])
+
+                #################
+                ### Voltage 2 ###
+                #################
+                plots[13].set_data(self.file_list,voltage2_data[self.num]['reverse'][:len(self.file_list)])
+
+                #######################
+                ### Peak Potentials ###
+                #######################
+                plots[15].set_data(self.file_list,peak_data_list[self.num]['reverse'][:len(self.file_list)])   # Forwards
 
 
             print('\n%s %d %s_animate\n' % (self.spacer,self.electrode,self.spacer))
