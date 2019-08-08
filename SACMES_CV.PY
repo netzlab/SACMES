@@ -1,6 +1,55 @@
+##########################
+# Local Branch Notes 8-2-19
+# Line 2938 in _raw_generator: peak_index extraction may result in multiple values
+# Line 3088 Peak Height Extraction is off a bit -- the linear baseline is
+#           created with the baseline currents but PHE is calculated using
+#           the adjusted current peak index
+#               - 8.6.19 FIXED
+#---------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------#
+
+# 8-3-19
+# How do I fix the solution phase calculations?
+#
+# I need to find a solution to calculate the solution phase PHE and AUC
+# using a linear baseline created with the slope of the end of the curve.
+#   - do I use the minima still to calculate where to start the slope?
+#   - do I just ask the user to define the ends of the adjusted data to
+#     create this slope?
+
+# CHANGES: I should use the 5% range to calculate the slope and then use the adjusted
+# currents to make the linear baseline so the PHE calculation remains accurate
+# (refer to 8-2-19)
+#            - need to calculate the vertex potential and then subract it from
+#              mx to move the vertex potential to the y-axis
+#            - cant use all of the baseline potentials/currents though
+#              as the baseline
+#            - HOWEVER - I only need to calculate the baseline up to the peak
+#              potential for PHE (I dont know what to do yet with AUC)
+
+# Yay Vacation!
+#
+# 8-7-19
+#   Solution Phase measurements are accurate! Check SamVerification.xlsx file
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
+
+# 8-6-19
+# - Need to figure out a way to determine which side the vertex current is on
+#       ** compare its potential to the peak potential
+# - Any points that are passed the vertex current should not be included in the
+# calculation of AUC/PH
+# - need to sort the adjusted currents so that they always go from low to high
+# otherwise, the orientation of the segments are flip flopped compared to each other
+# e.g. how i calculate f_initial and r_initial (line 2169). For now i am using a
+# comparison between the max values but this may cause problems in the figure
+
+
+#   Solution Phase measurements are accurate! Check SamVerification.xlsx file
+#---------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------#
+
 
                                     ########################
                                     ### Import Libraries ###
@@ -35,7 +84,6 @@ from matplotlib import style
 import scipy.integrate as integrate
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-#from shapely.geometry import Polygon as Shape
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -67,7 +115,7 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 
 #-- file handle variable --#
-handle_variable = 'T37 500nM HxSH 15hr'    # default handle variable is nothing
+handle_variable = '2nMRuHex_GCElectrode'    # default handle variable is nothing
 e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
 PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
@@ -242,11 +290,11 @@ def ReadData(myfile, electrode):
         segment_number = 1      # segment number
         segment_dictionary = {}
         segment_dictionary[segment_number] = ([],{},{})
-        forwards_dictionary = {}    # dictionary for forwards scans
+        forward_dictionary = {}    # dictionary for forward scans
         reverse_dictionary = {}     # dictionary for reverse scans
 
         #-- find the initial step potential to determine the  --#
-        #-- direction for forwards and reverse segments       --#
+        #-- direction for forward and reverse segments       --#
         initial_step = potentials[1] - potentials[0]
         if initial_step < 0:
             initial_step = 'Negative'
@@ -285,9 +333,9 @@ def ReadData(myfile, electrode):
                     segment_dictionary[segment_number][2].setdefault(currents[list_num-1],[]).append(value)
 
                     if step == initial_step:
-                        if segment_number not in forwards_dictionary:
-                            forwards_dictionary[segment_number] = {}
-                        forwards_dictionary[segment_number][potentials[list_num-1]] = list_num-1
+                        if segment_number not in forward_dictionary:
+                            forward_dictionary[segment_number] = {}
+                        forward_dictionary[segment_number][potentials[list_num-1]] = list_num-1
 
                     else:
                         if segment_number not in reverse_dictionary:
@@ -296,9 +344,9 @@ def ReadData(myfile, electrode):
 
 
                 if step == initial_step:
-                    if segment_number not in forwards_dictionary:
-                        forwards_dictionary[segment_number] = {}
-                    forwards_dictionary[segment_number][value] = list_num
+                    if segment_number not in forward_dictionary:
+                        forward_dictionary[segment_number] = {}
+                    forward_dictionary[segment_number][value] = list_num
 
                 else:
                     if segment_number not in reverse_dictionary:
@@ -314,7 +362,7 @@ def ReadData(myfile, electrode):
             list_num += 1
 
         #-- Return the data --#
-        return potentials, currents, segment_dictionary, forwards_dictionary, reverse_dictionary
+        return potentials, currents, segment_dictionary, forward_dictionary, reverse_dictionary
 
     except:
         print('\n\nError in Read Data\n\n')
@@ -965,7 +1013,7 @@ class SetupFrame(tk.Frame):
         self.potentials = setup_dictionary['potentials']
         self.currents = setup_dictionary['currents']
         self.segment_dictionary = setup_dictionary['segments']
-        self.forwards = setup_dictionary['forwards']
+        self.forward = setup_dictionary['forward']
         self.reverse = setup_dictionary['reverse']
         self.potential_dict = setup_dictionary['potential_dict']
         self.fig, self.ax = setup_dictionary['figure']
@@ -978,11 +1026,11 @@ class SetupFrame(tk.Frame):
         self.adjusted_reverse_artist, = self.ax.plot([],[],'k-',MarkerSize=0.1,zorder=2)
         self.adjusted_reverse_artist.set(alpha=0.9)          # increase its transparency
 
-        self.forwards_artist, = self.ax.plot([],[],'o',color='0.75',MarkerSize=1,label='Forwards',zorder=1)
-        self.adjusted_forwards_artist, = self.ax.plot([],[],'k-',MarkerSize=0.1,zorder=2)
-        self.adjusted_forwards_artist.set(alpha=0.9)        # increase its transparency
+        self.forward_artist, = self.ax.plot([],[],'o',color='0.75',MarkerSize=1,label='Forwards',zorder=1)
+        self.adjusted_forward_artist, = self.ax.plot([],[],'k-',MarkerSize=0.1,zorder=2)
+        self.adjusted_forward_artist.set(alpha=0.9)        # increase its transparency
 
-        self.setup_artists = [self.reverse_artist,self.adjusted_reverse_artist,self.forwards_artist,self.adjusted_forwards_artist]
+        self.setup_artists = [self.reverse_artist,self.adjusted_reverse_artist,self.forward_artist,self.adjusted_forward_artist]
 
         self.bg_cache = {}
 
@@ -1005,7 +1053,7 @@ class SetupFrame(tk.Frame):
         self.ForwardsSegmentSelection.grid(row=3,column=0,padx=10,sticky='nswe')
         self.forward_selection_dict = {}
         count = 0
-        for segment in self.forwards:
+        for segment in self.forward:
             self.forward_selection_dict[segment] = count
             self.ForwardsSegmentSelection.insert(END, segment)
             count += 1
@@ -1197,7 +1245,7 @@ class SetupFrame(tk.Frame):
             self.ReverseSegmentSelection.select_set(self.reverse_selection_dict[reverse_segment]) #This only sets focus on the first item.
             self.ReverseSegmentSelection.event_generate("<<ListboxSelect>>")
 
-            self.ForwardsSegmentSelection.select_set(self.forward_selection_dict[forwards_segment])
+            self.ForwardsSegmentSelection.select_set(self.forward_selection_dict[forward_segment])
             self.ForwardsSegmentSelection.event_generate("<<ListboxSelect>>")
 
             self.ReverseSelection(None)
@@ -1248,22 +1296,22 @@ class SetupFrame(tk.Frame):
 
 
     def ForwardsSelection(self, evt):
-        global forwards_segment
+        global forward_segment
 
-        self.forwards_segment = int(self.ForwardsSegmentSelection.get(self.ForwardsSegmentSelection.curselection()))
-        forwards_segment = self.forwards_segment
+        self.forward_segment = int(self.ForwardsSegmentSelection.get(self.ForwardsSegmentSelection.curselection()))
+        forward_segment = self.forward_segment
 
-        index_list, potential_dict,data_dict = self.segment_dictionary[self.forwards_segment]
+        index_list, potential_dict,data_dict = self.segment_dictionary[self.forward_segment]
 
-        self.forwards_potentials = [self.potentials[index] for index in index_list]
-        self.forwards_currents = [self.currents[index] for index in index_list]
+        self.forward_potentials = [self.potentials[index] for index in index_list]
+        self.forward_currents = [self.currents[index] for index in index_list]
 
-        self.adjusted_forwards_potentials = [potential for potential in self.forwards_potentials if low_voltage <= potential <= high_voltage]
-        adjusted_index_list = [potential_dict[potential] for potential in self.adjusted_forwards_potentials]
-        self.adjusted_forwards_currents = [self.currents[index] for index in adjusted_index_list]
+        self.adjusted_forward_potentials = [potential for potential in self.forward_potentials if low_voltage <= potential <= high_voltage]
+        adjusted_index_list = [potential_dict[potential] for potential in self.adjusted_forward_potentials]
+        self.adjusted_forward_currents = [self.currents[index] for index in adjusted_index_list]
 
-        self.adjusted_forwards_artist.set_data(self.adjusted_forwards_potentials,self.adjusted_forwards_currents)
-        self.forwards_artist.set_data(self.forwards_potentials,self.forwards_currents)
+        self.adjusted_forward_artist.set_data(self.adjusted_forward_potentials,self.adjusted_forward_currents)
+        self.forward_artist.set_data(self.forward_potentials,self.forward_currents)
 
         if not self.ForwardsSelectionExists:
             self.ForwardsSelectionExists = True
@@ -1335,7 +1383,7 @@ class SetupFrame(tk.Frame):
 
         passkey = True
         if self.ForwardsSelectionExists:
-            if Voltage1 not in self.forwards_potentials:
+            if Voltage1 not in self.forward_potentials:
                 passkey = False
 
         if self.ReverseSelectionExists:
@@ -1367,7 +1415,7 @@ class SetupFrame(tk.Frame):
 
         passkey = True
         if self.ForwardsSelectionExists:
-            if Voltage2 not in self.forwards_potentials:
+            if Voltage2 not in self.forward_potentials:
                 passkey = False
 
         if self.ReverseSelectionExists:
@@ -1841,28 +1889,28 @@ class InitializeFigureCanvas():
         std_data_list = []                                          # standard deviation between electrodes for each frequency
         for num in range(electrode_count):
             data_list[num] = {}
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
                 data_list[num][count] = [0]*numFiles                      # a data list for each eletrode
 
         #-- Data for peak potentials --#
         peak_data_list = [0]*electrode_count
         for num in range(electrode_count):
             peak_data_list[num] = {}
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
                 peak_data_list[num][count] = [0]*numFiles                      # a data list for each eletrode
 
         #-- Data Stored for Voltage 1 --#
         voltage1_data = [0]*electrode_count
         for num in range(electrode_count):
             voltage1_data[num] = {}
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
                 voltage1_data[num][count] = [0]*numFiles
 
         #-- Data Stored for Voltage 2 --#
         voltage2_data = [0]*electrode_count
         for num in range(electrode_count):
             voltage2_data[num] = {}
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
                 voltage2_data[num][count] = [0]*numFiles
 
         #--- Lists of Frames and Artists ---#
@@ -1972,15 +2020,15 @@ class InitializeFigureCanvas():
         # this assigns a Line2D artist object to the artist object (Axes)
 
         #-- Cyclic Voltammogram Artists --#
-        raw_forwards, = ax[0,0].plot([],[],'o',color='0.75',MarkerSize=0.5,zorder=1)   # Forwards
-        adjusted_forwards, = ax[0,0].plot([],[],'k-',zorder=3)
-        forwards_baseline, = ax[0,0].plot([],[],'k-',MarkerSize=0.5,zorder=4)
-        forwards_baseline.set_alpha(1)
+        raw_forward, = ax[0,0].plot([],[],'o',color='0.75',MarkerSize=0.5,zorder=1)   # Forwards
+        adjusted_forward, = ax[0,0].plot([],[],'k-',zorder=3)
+        forward_baseline, = ax[0,0].plot([],[],'k-',MarkerSize=0.5,zorder=4)
+        forward_baseline.set_alpha(1)
 
         #-- shading for Forwards AUC --#
-        forwards_verts = [(0,0),*zip([],[]),(0,0)]
-        forwards_poly = Polygon(forwards_verts, alpha = 0.5,color='g',zorder=2)
-        ax[0,0].add_patch(forwards_poly)
+        forward_verts = [(0,0),*zip([],[]),(0,0)]
+        forward_poly = Polygon(forward_verts, alpha = 0.5,color='g',zorder=2)
+        ax[0,0].add_patch(forward_poly)
 
         raw_reverse, = ax[0,0].plot([],[],'o',color='0.75',MarkerSize=0.5,zorder=1)     # Reverse
         adjusted_reverse, = ax[0,0].plot([],[],'k-',zorder=3)
@@ -1994,21 +2042,21 @@ class InitializeFigureCanvas():
 
 
         #-- PHE/AUC Artists --#
-        forwards_data, = ax[0,1].plot([],[],'go',Markersize=2,label='Forwards')
+        forward_data, = ax[0,1].plot([],[],'go',Markersize=2,label='Forwards')
         reverse_data, = ax[0,1].plot([],[],'ro',Markersize=2,label='Reverse')
 
         #-- Peak Potential Forwards --#
-        peak_forwards, = ax[1,0].plot([],[],'go',MarkerSize=1)
+        peak_forward, = ax[1,0].plot([],[],'go',MarkerSize=1)
 
         #-- Peak Potential Reverse --#
         peak_reverse, = ax[1,1].plot([],[],'ro',MarkerSize=1)
 
         #-- Voltage 1 Artists --#
-        volt1_forwards, = ax[2,0].plot([],[],'go',MarkerSize=1)
+        volt1_forward, = ax[2,0].plot([],[],'go',MarkerSize=1)
         volt1_reverse, = ax[2,0].plot([],[],'ro',MarkerSize=1)
 
         #-- Voltage 2 Artists --#
-        volt2_forwards, = ax[2,1].plot([],[],'go',MarkerSize=1)
+        volt2_forward, = ax[2,1].plot([],[],'go',MarkerSize=1)
         volt2_reverse, = ax[2,1].plot([],[],'ro',MarkerSize=1)
 
         #ax[0,1].legend(bbox_to_anchor=(0., 0, 1.05, 105), bbox_transform=gcf().transFigure)
@@ -2020,7 +2068,7 @@ class InitializeFigureCanvas():
         #####################################################
 
         # this is the list that will be returned as _drawn_artists to the Funcanimation class
-        plots = [raw_forwards,adjusted_forwards,forwards_baseline,forwards_poly,raw_reverse,adjusted_reverse,reverse_baseline,reverse_poly,forwards_data,reverse_data,volt1_forwards,volt1_reverse,volt2_forwards,volt2_reverse,peak_forwards,peak_reverse]
+        plots = [raw_forward,adjusted_forward,forward_baseline,forward_poly,raw_reverse,adjusted_reverse,reverse_baseline,reverse_poly,forward_data,reverse_data,volt1_forward,volt1_reverse,volt2_forward,volt2_reverse,peak_forward,peak_reverse]
 
         #--- And append that list to keep a global reference ---#
         electrode_frame = 'Electrode %s' % str(electrode)
@@ -2028,7 +2076,7 @@ class InitializeFigureCanvas():
             frame_list.append(electrode_frame)
 
         #--- Create empty plots to return to animate for initializing---#
-        EmptyPlots = [raw_forwards]
+        EmptyPlots = [raw_forward]
 
         plot_list.append(plots)        # 'plot_list' is a list of lists containing 'plots' for each electrode
 
@@ -2082,7 +2130,7 @@ class InitializeFigureCanvas():
             ###################################
             ### Retrieve data from the File ###
             ###################################
-            potentials, currents, segment_dictionary, forwards, reverse = ReadData(myfile, electrode)
+            potentials, currents, segment_dictionary, forward, reverse = ReadData(myfile, electrode)
 
 
             ###################################################
@@ -2117,19 +2165,17 @@ class InitializeFigureCanvas():
             ########################################
 
             local_dictionary = {}
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
 
-                #-- 1st, forwards --#
-                if count == 'forwards':
-                    index_list, potential_dict, data_dict = segment_dictionary[forwards_segment]
+                #-- 1st, forward --#
+                if count == 'forward':
+                    index_list, potential_dict, data_dict = segment_dictionary[forward_segment]
                     segment_potentials = [potentials[index] for index in index_list]
                     segment_currents = [currents[index] for index in index_list]
                     adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
                     adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
                     adjusted_currents = [currents[index] for index in adjusted_index_list]
-                    f_initial = adjusted_currents[0]
-                    print('Forward currents:',adjusted_currents)
-                    print('F Initial:',f_initial)
+                    f_initial = max(adjusted_currents)
 
                 #-- 2nd, reverse --#
                 elif count == 'reverse':
@@ -2139,28 +2185,26 @@ class InitializeFigureCanvas():
                     adjusted_potentials = [potential for potential in segment_potentials if low_voltage <= potential <= high_voltage]
                     adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
                     adjusted_currents = [currents[index] for index in adjusted_index_list]
-                    print('Reverse currents:',adjusted_currents)
-                    r_initial = adjusted_currents[0]
-                    print('R Initial:',r_initial)
+                    r_initial = max(adjusted_currents)
 
             #- if the reverse scan is negative compared
-            #- to the forwards scan, it is anodic and the
-            #- forwards is cathodic
+            #- to the forward scan, it is anodic and the
+            #- forward is cathodic
             sign_dictionary = {}
             if r_initial < f_initial:
                 sign_dictionary['reverse'] = 'anodic'
-                sign_dictionary['forwards'] = 'cathodic'
+                sign_dictionary['forward'] = 'cathodic'
             #- and vice versa
             else:
-                sign_dictionary['forwards'] = 'anodic'
+                sign_dictionary['forward'] = 'anodic'
                 sign_dictionary['reverse'] = 'cathodic'
 
             #-- initial analysis --#
-            for count in ['forwards','reverse']:
+            for count in ['forward','reverse']:
 
-                #-- 1st, forwards --#
-                if count == 'forwards':
-                    segment = forwards_segment
+                #-- 1st, forward --#
+                if count == 'forward':
+                    segment = forward_segment
 
                 #-- 2nd, reverse --#
                 elif count == 'reverse':
@@ -2218,8 +2262,10 @@ class InitializeFigureCanvas():
 
                 #-- if the peak is positive (cathodic) --#
                 if sign_dictionary[count] == 'cathodic':
-                    peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
-                    peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+                    # extract the potential of the peak current
+                    peak_potential = data_dict[max(adjusted_currents)][0]
+                    # extract the associated index adjusted to the user-chosen range
+                    peak_index = potential_dict[peak_potential] - adjusted_index_list[0]
 
                     #-- Split the voltammogram before and after the peak  --#
                     #-- potential and extract the maxima for each besides --#
@@ -2287,25 +2333,109 @@ class InitializeFigureCanvas():
                 #-- adjust the data to the bounds of the vertices --#
                 baseline_currents = adjusted_currents[index1:index2]
                 baseline_potentials = adjusted_potentials[index1:index2]
+                baseline_indeces = [potential_dict[potential] for potential in baseline_potentials]
 
-                #--- Create a linear baseline --#
+                baseline_current_dict = {}
+                for index in range(len(adjusted_currents)):
+                    baseline_current_dict[adjusted_currents[index]] = index
+
+                ################################
+                ### Create a linear baseline ###
+                ################################
 
                 #-- if it is a surface bound species --#
                 if mass_transport == 'surface':
-                    linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+                    proto_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+                    linear_baseline = []
+                    baseline_indeces = []
+
+                    for index in range(len(proto_baseline)):
+                        if sign_dictionary[count] == 'cathodic':
+                            if proto_baseline[index] <= baseline_currents[index]:
+                                linear_baseline.append(proto_baseline[index])
+                                baseline_indeces.append(index)
+                        if sign_dictionary[count] == 'anodic':
+                            if proto_baseline[index] >= baseline_currents[index]:
+                                linear_baseline.append(proto_baseline[index])
+                                baseline_indeces.append(index)
+
 
                     vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
                     vertex_data[count] = vertices
 
                 #-- if it is a solution phase species --#
                 elif mass_transport == 'solution':
+
                     if sign_dictionary[count] == 'cathodic':
                         vertex_current = min(vertex1,vertex2)
                     elif sign_dictionary[count] == 'anodic':
                         vertex_current = max(vertex1,vertex2)
-                    linear_baseline = [vertex_current]*len(baseline_currents)
 
-                    vertices = [(vertex1_potential,vertex_current), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex_current))]
+                    # retrieve the corresponding potential of the vertex current
+                    vertex_potential = data_dict[vertex_current][0]
+
+                    # retrieve the corresponding index of the vertex current/potential
+                    vertex_index = baseline_current_dict[vertex_current]
+
+                    # set the `range` to 5% of the total points #
+                    value_range = round(0.05*len(baseline_currents))
+
+                    # upper limit is the max index value before the index
+                    # is out of the bounds of the adjusted currents
+                    upper_limit = len(baseline_currents) - vertex_index
+
+                    if vertex_index < value_range:
+                        lower_range = baseline_currents[:vertex_index]
+                    else:
+                        lower_index = vertex_index - value_range
+                        lower_range = baseline_currents[lower_index:vertex_index]
+
+                    if vertex_index < upper_limit:
+                        upper_index = vertex_index + value_range
+                        upper_range = baseline_currents[vertex_index:upper_index]
+                    else:
+                        upper_range = baseline_currents[vertex_index:]
+
+                    # create a list with the entire range of current values #
+                    slope_currents = []
+                    for value in lower_range:
+                        slope_currents.append(value)
+                    for value in upper_range:
+                        slope_currents.append(value)
+
+                    # create a corresponding list of slope potentials #
+                    slope_potentials = [data_dict[current][0] for current in slope_currents]
+
+                    # calculate the slope of the data points surrounding the vertex #
+                    # (a ±5% range)
+                    slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
+
+                    # using this slope, create a linear baseline using the entire
+                    # range of potentials chosen by the user
+                    proto_baseline = []
+                    for index in range(len(baseline_currents)):
+                        proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
+
+                    # remove any currents that are above/below the currents of the segment
+                    linear_baseline = []
+                    baseline_indeces = []
+                    for index in range(len(proto_baseline)):
+                        if sign_dictionary[count] == 'cathodic':
+                            if proto_baseline[index] <= baseline_currents[index]:
+                                linear_baseline.append(proto_baseline[index])
+                                baseline_indeces.append(index)
+                        if sign_dictionary[count] == 'anodic':
+                            if proto_baseline[index] >= baseline_currents[index]:
+                                linear_baseline.append(proto_baseline[index])
+                                baseline_indeces.append(index)
+
+                    # adjust the baseline values to those that correspond with the
+                    # linear baseline
+                    baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                    baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                    vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
+
                     vertex_data[count] = vertices
 
                 baseline_data[count] = [baseline_potentials, linear_baseline]
@@ -2361,8 +2491,8 @@ class InitializeFigureCanvas():
             ### PHE/AUC Plot Y Limits ###
 
             #- find the max/min of the Peah Height of the
-            #- first file for the forwards and reverse scans
-            #- local_data_list = [Peak_Height_forwards,Peak_Height_reverse]
+            #- first file for the forward and reverse scans
+            #- local_data_list = [Peak_Height_forward,Peak_Height_reverse]
             local_min = min(local_data_list)
             local_max = max(local_data_list)
             #-- set the ylimits as the max/min plus/minus the aboslute value
@@ -2370,20 +2500,20 @@ class InitializeFigureCanvas():
             ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
 
             ### Peak Potential Plots ###
-            forwards_peak = peak_potential_list['forwards']
+            forward_peak = peak_potential_list['forward']
             reverse_peak = peak_potential_list['reverse']
-            ax[1,0].set_ylim(forwards_peak-abs(data_min*forwards_peak),forwards_peak+abs(data_max*forwards_peak))
+            ax[1,0].set_ylim(forward_peak-abs(data_min*forward_peak),forward_peak+abs(data_max*forward_peak))
             ax[1,1].set_ylim(reverse_peak-abs(data_min*reverse_peak),reverse_peak+abs(data_max*reverse_peak))
 
 
             ### Probe VoltagePlots ###
 
-            #-- Set Voltage 1 Plot Y Limits as the max/min of the forwards and
+            #-- Set Voltage 1 Plot Y Limits as the max/min of the forward and
             #-- reverse currents for voltage 1 plus/minus the aboslute value
             #-- of their value times the InputFrame global objext 'data_max/min'
             ax[2,0].set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
 
-            #-- SetVoltage 2 Plot Y Limits as the max/min of the forwards and
+            #-- SetVoltage 2 Plot Y Limits as the max/min of the forward and
             #-- reverse currents for voltage 2 plus/minus the aboslute value
             #-- of their value times the InputFrame global objext 'data_max/min'
             ax[2,1].set_ylim(min(V2_data)-(V2_min*abs(min(V2_data))),max(V2_data)+abs((V2_max*max(V2_data))))
@@ -2416,7 +2546,7 @@ class InitializeFigureCanvas():
                 mydata_bytes = 1
 
         if mydata_bytes > 1000:
-            potentials, currents, segment_dictionary, forwards, reverse = ReadData(myfile, 1)
+            potentials, currents, segment_dictionary, forward, reverse = ReadData(myfile, 1)
 
             fig = plt.figure(figsize=(9,6))
             ax = fig.add_subplot(111)
@@ -2438,7 +2568,7 @@ class InitializeFigureCanvas():
             setup_dictionary['currents'] = currents
             setup_dictionary['segments'] = segment_dictionary
             setup_dictionary['figure'] = setup_figure
-            setup_dictionary['forwards'] = forwards
+            setup_dictionary['forward'] = forward
             setup_dictionary['reverse'] = reverse
 
 
@@ -2852,7 +2982,7 @@ class ElectrochemicalAnimation():
         ###################################
         ### Retrieve data from the File ###
         ###################################
-        potentials, currents, segment_dictionary, forwards, reverse = ReadData(myfile, self.electrode)
+        potentials, currents, segment_dictionary, forward, reverse = ReadData(myfile, self.electrode)
 
 
         ################################################
@@ -2868,12 +2998,12 @@ class ElectrochemicalAnimation():
         print('%sElectrode Generator %s ' % (self.spacer,self.electrode))
 
         #-- initial analysis --#
-        for count in ['forwards','reverse']:
+        for count in ['forward','reverse']:
 
-            #-- 1st, forwards --#
-            if count == 'forwards':
+            #-- 1st, forward --#
+            if count == 'forward':
                 print('\n%sFORWARDS' % self.spacer)
-                segment = forwards_segment
+                segment = forward_segment
                 color = 'g'
 
             #-- 2nd, reverse --#
@@ -2936,8 +3066,10 @@ class ElectrochemicalAnimation():
             #-- if the peak is positive (cathodic) --#
             if sign_dictionary[count] == 'cathodic':
                 peak_potential = data_dict[max(adjusted_currents)][0]                # extract the potential of the peak current
-                print('Cathodic Peak Potential:',peak_potential)
-                peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+
+                # adjust the index of the peak from all segments (potential_dict)
+                # to the adjusted data specific to this segment and file
+                peak_index = potential_dict[peak_potential] - adjusted_index_list[0] # extract the associated index
 
                 try:
                     vertex1 = min(adjusted_currents[:peak_index])
@@ -2950,10 +3082,14 @@ class ElectrochemicalAnimation():
 
             #-- if the peak is negative (anodic) --#
             elif sign_dictionary[count] == 'anodic':
-                peak_potential = data_dict[min(adjusted_currents)][0]  # extract the potential of the peak current
-                print('Anodic Peak Potential:',peak_potential)
-                peak_index = potential_dict[peak_potential]  - adjusted_index_list[0]# extract the associated index
+                # extract the potential of the peak current
+                peak_potential = data_dict[min(adjusted_currents)][0]
 
+                # adjust the index of the peak from all segments (potential_dict)
+                # to the adjusted data specific to this segment and file
+                peak_index = potential_dict[peak_potential] - adjusted_index_list[0]# extract the associated index
+
+                # extract the vertices of the peak
                 try:
                     vertex1 = max(adjusted_currents[:peak_index])
                     vertex2 = max(adjusted_currents[peak_index:])
@@ -2963,6 +3099,7 @@ class ElectrochemicalAnimation():
                     vertex1 = max(adjusted_currents[:fit_half])
                     vertex2 = max(adjusted_currents[fit_half:])
 
+            print('%s Peak Potential:' % count,peak_potential)
             #-- Correlate the vertex currents to their potentials --#
             vertex1_potentials = adjusted_potentials[:peak_index]
             vertex2_potentials = adjusted_potentials[peak_index:]
@@ -2973,7 +3110,7 @@ class ElectrochemicalAnimation():
 
 
             #-- if multiple potentials correlate to the vertex --#
-            #-- then find  the closest to the peak potential   --#
+            #-- then find the closest to the peak potential   --#
             if len(vertex1_potential) == 1:
                 vertex1_potential = vertex1_potential[0]
                 index1 = potential_dict[vertex1_potential] - adjusted_index_list[0] # and the index value
@@ -3017,6 +3154,14 @@ class ElectrochemicalAnimation():
             #-- adjust the data to the bounds of the vertices --#
             baseline_currents = adjusted_currents[index1:index2]
             baseline_potentials = adjusted_potentials[index1:index2]
+            baseline_indeces = [potential_dict[potential] for potential in baseline_potentials]
+            baseline_peak_index = potential_dict[peak_potential] - baseline_indeces[0] # extract the associated index
+            #print('Baseline Potentials:',baseline_potentials)
+            #print('Baseline currents:',baseline_currents)
+
+            baseline_current_dict = {}
+            for index in range(len(adjusted_currents)):
+                baseline_current_dict[adjusted_currents[index]] = index
 
 
             ### Create a linear baseline ###
@@ -3033,8 +3178,78 @@ class ElectrochemicalAnimation():
                 elif sign_dictionary[count] == 'anodic':
                     vertex_current = max(vertex1,vertex2)
 
-                linear_baseline = [vertex_current]*len(baseline_currents)
-                vertices = [(vertex1_potential,vertex_current), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex_current))]
+                # retrieve the corresponding potential of the vertex current
+                vertex_potential = data_dict[vertex_current][0]
+
+                # retrieve the corresponding index of the vertex current/potential
+                vertex_index = baseline_current_dict[vertex_current]
+
+                # set the `range` to 5% of the total points #
+                #print('Baseline Currents:',len(baseline_currents))
+                value_range = round(0.02*len(segment_currents))
+                #print('Value Range:',value_range)
+
+                # upper limit is the max index value before the index
+                # is out of the bounds of the adjusted currents
+                upper_limit = len(baseline_currents) - vertex_index
+
+                if vertex_index < value_range:
+                    #print('Lower Vertex is under range')
+                    lower_range = baseline_currents[:vertex_index]
+                else:
+                    lower_index = vertex_index - value_range
+                    lower_range = baseline_currents[lower_index:vertex_index]
+
+                if vertex_index < upper_limit:
+                    #print('Upper vertex below upper limit')
+                    upper_index = vertex_index + value_range
+                    upper_range = baseline_currents[vertex_index:upper_index]
+                else:
+                    upper_range = baseline_currents[vertex_index:]
+
+                # create a list with the entire range of current values #
+                slope_currents = []
+                for value in lower_range:
+                    slope_currents.append(value)
+                for value in upper_range:
+                    slope_currents.append(value)
+                #print('Slope Currents:',slope_currents,len(slope_currents))
+
+                # create a corresponding list of slope potentials #
+                slope_potentials = [data_dict[current][0] for current in slope_currents]
+                #print('Slope Potentials',slope_potentials,len(slope_potentials))
+
+                # calculate the slope of the data points surrounding the vertex #
+                # (a ±5% range)
+                slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
+                #print('%s Vertex Current:' % count,vertex_current)
+                #print('%s%s Slope:' % (self.spacer,count),slope)
+
+                # using this slope, create a linear baseline using the entire
+                # range of potentials chosen by the user
+                proto_baseline = []
+                for index in range(len(baseline_currents)):
+                    proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
+
+                # remove any currents that are above/below the currents of the segment
+                linear_baseline = []
+                baseline_indeces = []
+                for index in range(len(proto_baseline)):
+                    if sign_dictionary[count] == 'cathodic':
+                        if proto_baseline[index] <= baseline_currents[index]:
+                            linear_baseline.append(proto_baseline[index])
+                            baseline_indeces.append(index)
+                    if sign_dictionary[count] == 'anodic':
+                        if proto_baseline[index] >= baseline_currents[index]:
+                            linear_baseline.append(proto_baseline[index])
+                            baseline_indeces.append(index)
+
+                # adjust the baseline values to those that correspond with the
+                # linear baseline
+                baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                vertices = [(baseline_potentials[0],linear_baseline[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],linear_baseline[-1]))]
 
             baseline_data[count] = [baseline_potentials, linear_baseline]
             vertex_data[count] = vertices
@@ -3044,9 +3259,13 @@ class ElectrochemicalAnimation():
             ################################################################
 
             if SelectedOptions == 'Peak Height Extraction':
-                Peak_Height = abs(adjusted_currents[peak_index] - linear_baseline[peak_index])
-                print(Peak_Height)
+                #********************************************************
+                # The peak index for adjusted currents and linear baseline dont
+                # match -- this is wrong!
+                #********************************************************
+                Peak_Height = abs(baseline_currents[baseline_peak_index] - linear_baseline[baseline_peak_index])
                 data = Peak_Height
+                print('%s%s Peak Height:' % (self.spacer,count),data)
 
             ########################################################
             ### If the user selected AUC extraction, analyze AUC ###
@@ -3061,15 +3280,15 @@ class ElectrochemicalAnimation():
 
                 AUC_index = 1
                 AUC = 0
+                AUC_width = step_potential
 
                 while AUC_index < len(baseline_currents) - 1:
                     AUC_height = (baseline_currents[AUC_index] - linear_baseline[AUC_index])
-                    AUC_width = step_potential
                     AUC += (AUC_height * AUC_width)
                     AUC_index += 1
 
                 AUC = AUC/scan_rate
-                print('Reimann Sum calculated AUC:',AUC)
+                print('%s%s Reimann Sum calculated AUC:' % (self.spacer,count),AUC)
 
                 data = abs(AUC)
 
@@ -3078,6 +3297,15 @@ class ElectrochemicalAnimation():
             #######################################
             data_list[self.num][count][self.index] = data
             peak_data_list[self.num][count][self.index] = peak_potential
+
+
+            # * Optional * Export Baseline Data *
+            #LocalFileHandle = ''.join(ExportPath +'%s baseline data E%s.txt' % (count,self.electrode))
+            #with open(LocalFileHandle,'w+',encoding='utf-8', newline = '') as input:
+            #    writer = csv.writer(input, delimiter = ' ')
+            #    zip_list = zip(baseline_data[count][0],baseline_data[count][1])
+            #    for item in zip_list:
+            #        writer.writerow(item)
 
 
         #####################################################
@@ -3104,54 +3332,52 @@ class ElectrochemicalAnimation():
             ### and get the data that will be visualized                 ###
             ################################################################
             plots = plot_list[self.num]
-            print('Forwards:',forward_boolean.get())
             self.forward_boolean = forward_boolean.get()
-            print('Reverse:',reverse_boolean.get())
             self.reverse_boolean = reverse_boolean.get()
             if self.forward_boolean:
                 ########################
                 ### Forwards Segment ###
                 ########################
                 #-- raw data --#
-                forwards_data = segment_data['forwards']
-                forwards_potentials = forwards_data[0]
-                forwards_currents = forwards_data[1]
+                forward_data = segment_data['forward']
+                forward_potentials = forward_data[0]
+                forward_currents = forward_data[1]
 
                 #-- data adjusted to user chosen voltage range --#
-                adjusted_forwards_data = adjusted_segment_data['forwards']
-                adjusted_forwards_potentials = adjusted_forwards_data[0]
-                adjusted_forwards_currents = adjusted_forwards_data[1]
+                adjusted_forward_data = adjusted_segment_data['forward']
+                adjusted_forward_potentials = adjusted_forward_data[0]
+                adjusted_forward_currents = adjusted_forward_data[1]
 
                 #-- linear baseline data --#
-                forwards_baseline = baseline_data['forwards']
-                forwards_baseline_potentials = forwards_baseline[0]
-                forwards_baseline_currents = forwards_baseline[1]
+                forward_baseline = baseline_data['forward']
+                forward_baseline_potentials = forward_baseline[0]
+                forward_baseline_currents = forward_baseline[1]
 
                 #-- set the x and y data of the artists to be animated --#
-                plots[0].set_data(forwards_potentials,forwards_currents)
-                plots[1].set_data(adjusted_forwards_potentials,adjusted_forwards_currents)
-                plots[2].set_data(forwards_baseline_potentials,forwards_baseline_currents)
-                plots[3].set_xy(vertex_data['forwards'])
+                plots[0].set_data(forward_potentials,forward_currents)
+                plots[1].set_data(adjusted_forward_potentials,adjusted_forward_currents)
+                plots[2].set_data(forward_baseline_potentials,forward_baseline_currents)
+                plots[3].set_xy(vertex_data['forward'])
 
                 #######################
                 ### Peak Height/AUC ###
                 #######################
-                plots[8].set_data(self.file_list,data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
+                plots[8].set_data(self.file_list,data_list[self.num]['forward'][:len(self.file_list)])   # Forwards
 
                 #################
                 ### Voltage 1 ###
                 #################
-                plots[10].set_data(self.file_list,voltage1_data[self.num]['forwards'][:len(self.file_list)])
+                plots[10].set_data(self.file_list,voltage1_data[self.num]['forward'][:len(self.file_list)])
 
                 #################
                 ### Voltage 2 ###
                 #################
-                plots[12].set_data(self.file_list,voltage2_data[self.num]['forwards'][:len(self.file_list)])
+                plots[12].set_data(self.file_list,voltage2_data[self.num]['forward'][:len(self.file_list)])
 
                 #######################
                 ### Peak Potentials ###
                 #######################
-                plots[14].set_data(self.file_list,peak_data_list[self.num]['forwards'][:len(self.file_list)])   # Forwards
+                plots[14].set_data(self.file_list,peak_data_list[self.num]['forward'][:len(self.file_list)])   # Forwards
 
             if self.reverse_boolean:
                 #######################
@@ -3611,18 +3837,19 @@ class TextFileExport():
         if SelectedOptions == 'Peak Height Extraction':
             TxtList.append('Forwards_PeakHeight_(µA)')
             TxtList.append('Reverse_PeakHeight_(µA)')
-            TxtList.append('%dV_Forwards_(µA)' % Voltage1)
-            TxtList.append('%dV_Forwards_(µA)' % Voltage2)
-            TxtList.append('%dV_Reverse_(µA)' % Voltage1)
-            TxtList.append('%dV_Reverse_(µA)' % Voltage2)
+            TxtList.append('Forward_Peak_Potential_(V)')
+            TxtList.append('Reverse_Peak_Potential_(V)')
 
         elif SelectedOptions == 'Area Under the Curve':
             TxtList.append('Forwards_AUC_(µC)')
             TxtList.append('Reverse_AUC_(µC)')
-            TxtList.append('%dV_Forwards_(µA)' % Voltage1)
-            TxtList.append('%dV_Forwards_(µA)' % Voltage2)
-            TxtList.append('%dV_Reverse_(µA)' % Voltage1)
-            TxtList.append('%dV_Reverse_(µA)' % Voltage2)
+            TxtList.append('Forward_Peak_Potential_(V)')
+            TxtList.append('Reverse_Peak_Potential_(V)')
+
+        TxtList.append(''.join(str(Voltage1)+'V_Forwards_(µA)'))
+        TxtList.append(''.join(str(Voltage2)+'V_Forwards_(µA)'))
+        TxtList.append(''.join(str(Voltage1)+'V_Reverse_(µA)'))
+        TxtList.append(''.join(str(Voltage2)+'V_Reverse_(µA)'))
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.')
@@ -3644,15 +3871,19 @@ class TextFileExport():
         for num in range(electrode_count):
 
             #-- Forwards and Reverse PHE/AUC --#
-            list.append(data_list[num]['forwards'][index])
+            list.append(data_list[num]['forward'][index])
             list.append(data_list[num]['reverse'][index])
 
+            #-- Forward and Reverse Peak Potential --#
+            list.append(peak_data_list[num]['forward'][index])
+            list.append(peak_data_list[num]['reverse'][index])
+
             #-- Voltage 1 (Forwards, Reverse) --#
-            list.append(voltage1_data[num]['forwards'][index])
+            list.append(voltage1_data[num]['forward'][index])
             list.append(voltage1_data[num]['reverse'][index])
 
             #-- Voltage 2 (Forwards, Reverse) --#
-            list.append(voltage2_data[num]['forwards'][index])
+            list.append(voltage2_data[num]['forward'][index])
             list.append(voltage2_data[num]['reverse'][index])
 
             LocalFileHandle = FileHandle.split('.')
