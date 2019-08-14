@@ -1,54 +1,16 @@
-##########################
-# Local Branch Notes 8-2-19
-# Line 2938 in _raw_generator: peak_index extraction may result in multiple values
-# Line 3088 Peak Height Extraction is off a bit -- the linear baseline is
-#           created with the baseline currents but PHE is calculated using
-#           the adjusted current peak index
-#               - 8.6.19 FIXED
-#---------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------#
-
-# 8-3-19
-# How do I fix the solution phase calculations?
-#
-# I need to find a solution to calculate the solution phase PHE and AUC
-# using a linear baseline created with the slope of the end of the curve.
-#   - do I use the minima still to calculate where to start the slope?
-#   - do I just ask the user to define the ends of the adjusted data to
-#     create this slope?
-
-# CHANGES: I should use the 5% range to calculate the slope and then use the adjusted
-# currents to make the linear baseline so the PHE calculation remains accurate
-# (refer to 8-2-19)
-#            - need to calculate the vertex potential and then subract it from
-#              mx to move the vertex potential to the y-axis
-#            - cant use all of the baseline potentials/currents though
-#              as the baseline
-#            - HOWEVER - I only need to calculate the baseline up to the peak
-#              potential for PHE (I dont know what to do yet with AUC)
-
-# Yay Vacation!
-#
-# 8-7-19
-#   Solution Phase measurements are accurate! Check SamVerification.xlsx file
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
 
-# 8-6-19
-# - Need to figure out a way to determine which side the vertex current is on
-#       ** compare its potential to the peak potential
-# - Any points that are passed the vertex current should not be included in the
-# calculation of AUC/PH
-# - need to sort the adjusted currents so that they always go from low to high
-# otherwise, the orientation of the segments are flip flopped compared to each other
-# e.g. how i calculate f_initial and r_initial (line 2169). For now i am using a
-# comparison between the max values but this may cause problems in the figure
+# 8-13-19
 
+# Were moving to fucking BMOOOOOOO
+# Updates:
+#   - fixed the PHE and AUC indeces to always match when the currents are adjusted
+#     for both solution and surface phase calculations
+#   - updated the verification function within the checkpoint class to account
+#     for multipotentiostat settings.
 
-#   Solution Phase measurements are accurate! Check SamVerification.xlsx file
-#---------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------#
 
 
                                     ########################
@@ -926,11 +888,30 @@ class CheckPoint():
                 mydata_bytes = 1
 
         if mydata_bytes > 1000:
-            if not self.already_verified[self.electrode]:
-                self.already_verified[self.electrode] = True
-                if not self.StopSearch:
-                    self.label_dict[self.electrode]['fg'] = 'green'
-                    self.analysis_count += 1
+
+            #-- if in multipotentiostat settings, try and see if a column
+            #-- exists for the current electrode
+            if e_var == 'single':
+                list_val = _get_listval(self.electrode)
+                try:
+                    potentials, currents, segment_dictionary, forward, reverse = ReadData(myfile, self.electrode)
+
+                    if not self.already_verified[self.electrode]:
+                        self.already_verified[self.electrode] = True
+                        if not self.StopSearch:
+                            self.label_dict[self.electrode]['fg'] = 'green'
+                            self.analysis_count += 1
+
+                except:
+                    if not self.StopSearch:
+                        root.after(200,self.verify)
+
+            elif e_var == 'multiple':
+                if not self.already_verified[self.electrode]:
+                    self.already_verified[self.electrode] = True
+                    if not self.StopSearch:
+                        self.label_dict[self.electrode]['fg'] = 'green'
+                        self.analysis_count += 1
 
             if self.analysis_count == self.analysis_limit:
                 root.after(10,self.proceed)
@@ -1400,7 +1381,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage1Error['text'] = 'Voltage 1 not in\nboth segments'
-            self.Voltage1Error.grid(row=3,column=0)
+            self.Voltage1Error.grid(row=4,column=0)
             self.Voltage1Warning = True
 
             if self.Voltage1Exists:
@@ -1432,7 +1413,7 @@ class SetupFrame(tk.Frame):
 
         else:
             self.Voltage2Error['text'] = 'Voltage 2 not in\nboth segments'
-            self.Voltage2Error.grid(row=3,column=1)
+            self.Voltage2Error.grid(row=4,column=1)
             self.Voltage2Warning = True
 
             if self.Voltage2Exists:
@@ -1494,7 +1475,7 @@ class SetupFrame(tk.Frame):
             if self.Voltage1Warning:
                 self.Voltage1Error.grid_forget()
         else:
-            self.Voltage1Error.grid(row=2,column=0)
+            self.Voltage1Error.grid(row=4,column=0)
             self.Voltage1Warning = True
 
             passkey = False
@@ -1503,7 +1484,7 @@ class SetupFrame(tk.Frame):
             if self.Voltage2Warning:
                 self.Voltage2Error.grid_forget()
         else:
-            self.Voltage2Error.grid(row=2,column=1)
+            self.Voltage2Error.grid(row=4,column=1)
             self.Voltage2Warning = True
 
             passkey = False
@@ -2159,7 +2140,6 @@ class InitializeFigureCanvas():
             local_data_list = []
             peak_potential_list = {}
 
-
             ########################################
             ### Iterate through the two segments ###
             ########################################
@@ -2186,7 +2166,6 @@ class InitializeFigureCanvas():
                     adjusted_index_list = [potential_dict[potential] for potential in adjusted_potentials]
                     adjusted_currents = [currents[index] for index in adjusted_index_list]
                     r_initial = max(adjusted_currents)
-
             #- if the reverse scan is negative compared
             #- to the forward scan, it is anodic and the
             #- forward is cathodic
@@ -2201,6 +2180,7 @@ class InitializeFigureCanvas():
 
             #-- initial analysis --#
             for count in ['forward','reverse']:
+                print('\nInitialize %s' % count)
 
                 #-- 1st, forward --#
                 if count == 'forward':
@@ -2333,7 +2313,6 @@ class InitializeFigureCanvas():
                 #-- adjust the data to the bounds of the vertices --#
                 baseline_currents = adjusted_currents[index1:index2]
                 baseline_potentials = adjusted_potentials[index1:index2]
-                baseline_indeces = [potential_dict[potential] for potential in baseline_potentials]
 
                 baseline_current_dict = {}
                 for index in range(len(adjusted_currents)):
@@ -2359,6 +2338,16 @@ class InitializeFigureCanvas():
                                 linear_baseline.append(proto_baseline[index])
                                 baseline_indeces.append(index)
 
+
+                    baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                    baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                    peak_index_dict = {}
+                    index = 0
+                    for potential in baseline_potentials:
+                        peak_index_dict[potential] = index
+                        index += 1
+                    baseline_peak_index = peak_index_dict[peak_potential]
 
                     vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
                     vertex_data[count] = vertices
@@ -2434,25 +2423,37 @@ class InitializeFigureCanvas():
                     baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
                     baseline_currents = [baseline_currents[index] for index in baseline_indeces]
 
+                    peak_index_dict = {}
+                    index = 0
+                    for potential in baseline_potentials:
+                        peak_index_dict[potential] = index
+                        index += 1
+
+                    baseline_peak_index = peak_index_dict[peak_potential]
+
                     vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
 
                     vertex_data[count] = vertices
 
                 baseline_data[count] = [baseline_potentials, linear_baseline]
 
-                #####################################
-                ### Area under the Curve vertices ###
-                #####################################
-
-
-
-
                 ################################################################
                 ### If the user selected Peak Height Extraction, analyze PHE ###
                 ################################################################
 
                 if SelectedOptions == 'Peak Height Extraction':
-                    Peak_Height = abs(adjusted_currents[peak_index] - linear_baseline[peak_index])
+                    print('\npeak potential index',potential_dict[peak_potential])
+                    print('\nbaseline index',baseline_indeces[0])
+                    print('\nRaw Currents:',segment_currents,len(segment_currents))
+                    print('\nAdjusted Current:',adjusted_currents,len(adjusted_currents))
+                    print('\nBaseline Currents:',baseline_currents,len(baseline_currents))
+                    print('\nLinear Baseline,',linear_baseline,len(linear_baseline))
+                    print('\nAdjusted Currents Peak Current:',adjusted_currents[peak_index])
+                    print('\nBaseline Currents Peak Current:',baseline_currents[baseline_peak_index])
+                    print('\nPeak Index:',peak_index)
+                    print('\nBaseline Peak Index',baseline_peak_index)
+
+                    Peak_Height = abs(baseline_currents[baseline_peak_index] - linear_baseline[baseline_peak_index])
                     data = Peak_Height
                     local_data_list.append(data)
 
@@ -3155,7 +3156,6 @@ class ElectrochemicalAnimation():
             baseline_currents = adjusted_currents[index1:index2]
             baseline_potentials = adjusted_potentials[index1:index2]
             baseline_indeces = [potential_dict[potential] for potential in baseline_potentials]
-            baseline_peak_index = potential_dict[peak_potential] - baseline_indeces[0] # extract the associated index
             #print('Baseline Potentials:',baseline_potentials)
             #print('Baseline currents:',baseline_currents)
 
@@ -3168,8 +3168,35 @@ class ElectrochemicalAnimation():
 
             #-- if it is a surface bound species --#
             if mass_transport == 'surface':
-                linear_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+                proto_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
+                linear_baseline = []
+                baseline_indeces = []
+
+                #-- make sure the baseline currents to not go out of the
+                #-- boundaries of the current segment
+                for index in range(len(proto_baseline)):
+                    if sign_dictionary[count] == 'cathodic':
+                        if proto_baseline[index] <= baseline_currents[index]:
+                            linear_baseline.append(proto_baseline[index])
+                            baseline_indeces.append(index)
+                    if sign_dictionary[count] == 'anodic':
+                        if proto_baseline[index] >= baseline_currents[index]:
+                            linear_baseline.append(proto_baseline[index])
+                            baseline_indeces.append(index)
+
+
+                baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                peak_index_dict = {}
+                index = 0
+                for potential in baseline_potentials:
+                    peak_index_dict[potential] = index
+                    index += 1
+                baseline_peak_index = peak_index_dict[peak_potential]
+
                 vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
+                vertex_data[count] = vertices
 
             #-- if it is a solution phase species --#
             elif mass_transport == 'solution':
@@ -3230,24 +3257,41 @@ class ElectrochemicalAnimation():
                 proto_baseline = []
                 for index in range(len(baseline_currents)):
                     proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
-
+                print(proto_baseline,len(proto_baseline))
                 # remove any currents that are above/below the currents of the segment
                 linear_baseline = []
                 baseline_indeces = []
+                print('\n\n%s %s' % (count,sign_dictionary[count]))
+                print(baseline_currents)
+                print(proto_baseline)
                 for index in range(len(proto_baseline)):
+
                     if sign_dictionary[count] == 'cathodic':
                         if proto_baseline[index] <= baseline_currents[index]:
                             linear_baseline.append(proto_baseline[index])
                             baseline_indeces.append(index)
                     if sign_dictionary[count] == 'anodic':
+                        print(proto_baseline[index],baseline_currents[index])
                         if proto_baseline[index] >= baseline_currents[index]:
+                            print('\nAdded\n')
                             linear_baseline.append(proto_baseline[index])
                             baseline_indeces.append(index)
 
                 # adjust the baseline values to those that correspond with the
                 # linear baseline
                 baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                print(baseline_potentials)
                 baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                peak_index_dict = {}
+                index = 0
+                for potential in baseline_potentials:
+                    peak_index_dict[potential] = index
+                    index += 1
+
+                print(peak_index_dict)
+                baseline_peak_index = peak_index_dict[peak_potential]
+                print(baseline_peak_index)
 
                 vertices = [(baseline_potentials[0],linear_baseline[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],linear_baseline[-1]))]
 
