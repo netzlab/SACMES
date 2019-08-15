@@ -77,7 +77,7 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 
 #-- file handle variable --#
-handle_variable = '2nMRuHex_GCElectrode'    # default handle variable is nothing
+handle_variable = 'MCHorHxSH_22degrees'    # default handle variable is nothing
 e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
 PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
@@ -2341,12 +2341,22 @@ class InitializeFigureCanvas():
 
                     baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
                     baseline_currents = [baseline_currents[index] for index in baseline_indeces]
-
+                    print('\nSegment Potentials',segment_potentials)
+                    print('\nAdjusted Potentials:',adjusted_potentials)
+                    print('\nBaseline Potentials:',baseline_potentials)
                     peak_index_dict = {}
                     index = 0
                     for potential in baseline_potentials:
                         peak_index_dict[potential] = index
                         index += 1
+                    print('\nPeak Index dict:',peak_index_dict)
+
+                    # recalculate the peak potential of the baseline currents #
+                    if sign_dictionary[count] == 'cathodic':
+                        peak_potential = data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                    if sign_dictionary[count] == 'anodic':
+                        peak_potential = data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+
                     baseline_peak_index = peak_index_dict[peak_potential]
 
                     vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
@@ -2428,6 +2438,12 @@ class InitializeFigureCanvas():
                     for potential in baseline_potentials:
                         peak_index_dict[potential] = index
                         index += 1
+
+                    # recalculate the peak potential of the baseline currents #
+                    if sign_dictionary[count] == 'cathodic':
+                        peak_potential = data_dict[max(baseline_currents)]  # extract the potential of the peak current
+                    if sign_dictionary[count] == 'anodic':
+                        peak_potential = data_dict[min(baseline_currents)]  # extract the potential of the peak current
 
                     baseline_peak_index = peak_index_dict[peak_potential]
 
@@ -3193,6 +3209,13 @@ class ElectrochemicalAnimation():
                 for potential in baseline_potentials:
                     peak_index_dict[potential] = index
                     index += 1
+
+                # recalculate the peak potential of the baseline currents #
+                if sign_dictionary[count] == 'cathodic':
+                    peak_potential = data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                if sign_dictionary[count] == 'anodic':
+                    peak_potential = data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+
                 baseline_peak_index = peak_index_dict[peak_potential]
 
                 vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
@@ -3257,13 +3280,10 @@ class ElectrochemicalAnimation():
                 proto_baseline = []
                 for index in range(len(baseline_currents)):
                     proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
-                print(proto_baseline,len(proto_baseline))
                 # remove any currents that are above/below the currents of the segment
                 linear_baseline = []
                 baseline_indeces = []
-                print('\n\n%s %s' % (count,sign_dictionary[count]))
-                print(baseline_currents)
-                print(proto_baseline)
+
                 for index in range(len(proto_baseline)):
 
                     if sign_dictionary[count] == 'cathodic':
@@ -3271,9 +3291,7 @@ class ElectrochemicalAnimation():
                             linear_baseline.append(proto_baseline[index])
                             baseline_indeces.append(index)
                     if sign_dictionary[count] == 'anodic':
-                        print(proto_baseline[index],baseline_currents[index])
                         if proto_baseline[index] >= baseline_currents[index]:
-                            print('\nAdded\n')
                             linear_baseline.append(proto_baseline[index])
                             baseline_indeces.append(index)
 
@@ -3290,6 +3308,13 @@ class ElectrochemicalAnimation():
                     index += 1
 
                 print(peak_index_dict)
+
+                # recalculate the peak potential of the baseline currents #
+                if sign_dictionary[count] == 'cathodic':
+                    peak_potential = data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                if sign_dictionary[count] == 'anodic':
+                    peak_potential = data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+
                 baseline_peak_index = peak_index_dict[peak_potential]
                 print(baseline_peak_index)
 
