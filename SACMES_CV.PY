@@ -2423,19 +2423,13 @@ class InitializeFigureCanvas():
 
                             # recalculate the peak potential of the baseline currents #
                             if self.sign_dictionary[count] == 'cathodic':
-                                print(self.data_dict[max(baseline_currents)])
                                 peak_potential = self.data_dict[max(baseline_currents)]  # extract the potential of the peak current
 
                             if self.sign_dictionary[count] == 'anodic':
-                                print(self.data_dict[min(baseline_currents)])
                                 peak_potential = self.data_dict[min(baseline_currents)]  # extract the potential of the peak current
 
-                            print('Peak Potential',peak_potential)
                             peak_potential = peak_potential[0]
-                            print('Peak Potential',peak_potential)
                             baseline_peak_index = peak_index_dict[peak_potential]
-                            print('Baseline Peak Index',baseline_peak_index)
-                            print(len(baseline_currents),len(baseline_potentials))
                             vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
                             vertex_data[count] = vertices
                         except:
