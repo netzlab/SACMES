@@ -2365,22 +2365,25 @@ class InitializeFigureCanvas():
                             upper_limit = len(baseline_currents) - vertex_index
 
                             if vertex_index < value_range:
+                                print('Lower Vertex is under range')
                                 lower_range = baseline_currents[:vertex_index]
+                                lower_range_potentials = baseline_potentials[:vertex_index]
                             else:
                                 lower_index = vertex_index - value_range
                                 lower_range = baseline_currents[lower_index:vertex_index]
-
+                                lower_range_potentials = baseline_potentials[lower_index:vertex_index]
                             if vertex_index < upper_limit:
+                                print('Upper vertex below upper limit')
                                 upper_index = vertex_index + value_range
                                 upper_range = baseline_currents[vertex_index:upper_index]
+                                upper_range_potentials = baseline_potentials[vertex_index:upper_index]
+
                             else:
                                 upper_range = baseline_currents[vertex_index:]
+                                upper_range_potentials = baseline_potentials[vertex_index:]
                         except:
-                            print('RunInitialization: Error in Solution Phase Range Calculation')
+                            print('\nRunInitialization: Error in Solution Phase Range Calculation')
 
-                        ###########################################
-                        ### Calculate the slope of the baseline ###
-                        ###########################################
                         try:
                             # create a list with the entire range of current values #
                             slope_currents = []
@@ -2389,8 +2392,13 @@ class InitializeFigureCanvas():
                             for value in upper_range:
                                 slope_currents.append(value)
 
-                            # create a corresponding list of slope potentials #
-                            slope_potentials = [self.data_dict[current][0] for current in slope_currents]
+                            # create a list of slope potentials
+                            slope_potentials = []
+                            for value in lower_range_potentials:
+                                slope_potentials.append(value)
+                            for value in upper_range_potentials:
+                                slope_potentials.append(value)
+
 
                             # calculate the slope of the data points surrounding the vertex #
                             # (a ±5% range)
@@ -2411,15 +2419,23 @@ class InitializeFigureCanvas():
                         ####################################
 
                         try:
+
+
                             # recalculate the peak potential of the baseline currents #
                             if self.sign_dictionary[count] == 'cathodic':
+                                print(self.data_dict[max(baseline_currents)])
                                 peak_potential = self.data_dict[max(baseline_currents)]  # extract the potential of the peak current
 
                             if self.sign_dictionary[count] == 'anodic':
+                                print(self.data_dict[min(baseline_currents)])
                                 peak_potential = self.data_dict[min(baseline_currents)]  # extract the potential of the peak current
 
+                            print('Peak Potential',peak_potential)
                             peak_potential = peak_potential[0]
+                            print('Peak Potential',peak_potential)
                             baseline_peak_index = peak_index_dict[peak_potential]
+                            print('Baseline Peak Index',baseline_peak_index)
+                            print(len(baseline_currents),len(baseline_potentials))
                             vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
                             vertex_data[count] = vertices
                         except:
@@ -2650,6 +2666,10 @@ class InitializeFigureCanvas():
                     if proto_baseline[index] >= baseline_currents[index]:
                         linear_baseline.append(proto_baseline[index])
                         baseline_indeces.append(index)
+
+            if len(linear_baseline) == 0:
+                linear_baseline = proto_baseline
+                baseline_indeces = [value for value in range(len(proto_baseline))]
 
             baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
             baseline_currents = [baseline_currents[index] for index in baseline_indeces]
@@ -3324,7 +3344,7 @@ class ElectrochemicalAnimation():
                         proto_baseline = []
                         for index in range(len(baseline_currents)):
                             proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
-                            
+
                         # remove any currents that are above/below the currents of the segment
                         linear_baseline = []
                         baseline_indeces = []
