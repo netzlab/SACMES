@@ -2016,13 +2016,9 @@ class InitializeFigureCanvas():
             ratio_plots = [norm_ratiometric_plot,norm_injection,KDM,KDM_injection]
             ratiometric_plots.append(ratio_plots)
 
-
             empty_norm_ratiometric, = axes[0,0].plot([],[],'ro',markersize=1)
             empty_KDM, = axes[0,1].plot([],[],'ro',markersize=1)
             EmptyRatioPlots = [norm_ratiometric_plot,norm_injection,KDM,KDM_injection]
-
-
-
 
             return figure, axes
 
@@ -2167,8 +2163,9 @@ class InitializeFigureCanvas():
             linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
             linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
 
-            Peak_Height = max(max1,max2)-min(min1,min2)
-
+            if SelectedOptions == 'Peak Height Extraction':
+                Peak_Height = max(max1,max2)-min(min1,min2)
+                data = Peak_Height
 
             if SelectedOptions == 'Area Under the Curve':
                 AUC_index = 1
@@ -2184,21 +2181,20 @@ class InitializeFigureCanvas():
                     AUC += (AUC_height * AUC_width)
                     AUC_index += 1
 
+                data = AUC
+
             #--- calculate the baseline current ---#
             minimum_current = min(min1,min2)
             maximum_current = max(max1,max2)
-            peak_current = maximum_current - minimum_current
 
-            if SelectedOptions == 'Peak Height Extraction':
-                ax[0,subplot_count].set_ylim(min_raw*minimum_current,max_raw*maximum_current)                    # voltammogram
-                ax[1,subplot_count].set_ylim(min_data*peak_current,max_data*peak_current)                    # raw peak height
-                ax[2,subplot_count].set_ylim(min_norm,max_norm)                                                 # normalized peak height
+            #- Voltammogram -#
+            ax[0,subplot_count].set_ylim(minimum_current-abs(min_raw*minimum_current),maximum_current+abs(max_raw*maximum_current))
 
-            elif SelectedOptions == 'Area Under the Curve':
-                ax[0,subplot_count].set_ylim(0,max_raw*maximum_current)
-                ax[1,subplot_count].set_ylim(min_data*AUC,max_data*AUC)
-                ax[2,subplot_count].set_ylim(min_norm,max_norm)
+            #- PHE/AUC Data -#
+            ax[1,subplot_count].set_ylim(data-abs(min_data*data),data+abs(max_data*data))
 
+            #- Normalized Data -#
+            ax[2,subplot_count].set_ylim(min_norm,max_norm)
 
             return True
 
