@@ -63,7 +63,7 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 
 #-- file handle variable --#
-handle_variable = 'MCHorHxSH_22degrees'    # default handle variable is nothing
+handle_variable = 'CV_repetitive_100mVs'    # default handle variable is nothing
 e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
 PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
@@ -301,8 +301,6 @@ def ReadData(myfile, electrode):
                     if segment_number not in reverse_dictionary:
                         reverse_dictionary[segment_number] = {}
                     reverse_dictionary[segment_number][value] = list_num
-
-
 
             segment_dictionary[segment_number][0].append(list_num)
             segment_dictionary[segment_number][1][value] = list_num
@@ -2245,6 +2243,7 @@ class InitializeFigureCanvas():
                     adjusted_segment_data[count] = [self.adjusted_potentials,self.adjusted_currents]
                 except:
                     print('RunInitialization: Error in Value Adjustment')
+
                 ################################################
                 ### Extract Data for User-Specified Voltages ###
                 ################################################
@@ -2320,28 +2319,7 @@ class InitializeFigureCanvas():
 
                     try:
                         proto_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
-                        linear_baseline = []
-                        baseline_indeces = []
-
-                        for index in range(len(proto_baseline)):
-                            if self.sign_dictionary[count] == 'cathodic':
-                                if proto_baseline[index] <= baseline_currents[index]:
-                                    linear_baseline.append(proto_baseline[index])
-                                    baseline_indeces.append(index)
-                            if self.sign_dictionary[count] == 'anodic':
-                                if proto_baseline[index] >= baseline_currents[index]:
-                                    linear_baseline.append(proto_baseline[index])
-                                    baseline_indeces.append(index)
-
-
-                        baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
-                        baseline_currents = [baseline_currents[index] for index in baseline_indeces]
-
-                        peak_index_dict = {}
-                        index = 0
-                        for potential in baseline_potentials:
-                            peak_index_dict[potential] = index
-                            index += 1
+                        linear_baseline, baseline_indeces,baseline_potentials,baseline_currents,peak_index_dict = self.extract_baseline(count,proto_baseline,baseline_potentials,baseline_currents)
 
                         # recalculate the peak potential of the baseline currents #
                         if self.sign_dictionary[count] == 'cathodic':
@@ -2361,91 +2339,101 @@ class InitializeFigureCanvas():
                 elif mass_transport == 'solution':
 
                     try:
-                        if self.sign_dictionary[count] == 'cathodic':
-                            vertex_current = min(vertex1,vertex2)
-                        elif self.sign_dictionary[count] == 'anodic':
-                            vertex_current = max(vertex1,vertex2)
-
-                        # retrieve the corresponding potential of the vertex current
-                        vertex_potential = self.data_dict[vertex_current][0]
-
-                        # retrieve the corresponding index of the vertex current/potential
-                        vertex_index = baseline_current_dict[vertex_current]
-
-                        # set the `range` to 5% of the total points #
-                        value_range = round(0.05*len(baseline_currents))
-
-                        # upper limit is the max index value before the index
-                        # is out of the bounds of the adjusted currents
-                        upper_limit = len(baseline_currents) - vertex_index
-
-                        if vertex_index < value_range:
-                            lower_range = baseline_currents[:vertex_index]
-                        else:
-                            lower_index = vertex_index - value_range
-                            lower_range = baseline_currents[lower_index:vertex_index]
-
-                        if vertex_index < upper_limit:
-                            upper_index = vertex_index + value_range
-                            upper_range = baseline_currents[vertex_index:upper_index]
-                        else:
-                            upper_range = baseline_currents[vertex_index:]
-
-                        # create a list with the entire range of current values #
-                        slope_currents = []
-                        for value in lower_range:
-                            slope_currents.append(value)
-                        for value in upper_range:
-                            slope_currents.append(value)
-
-                        # create a corresponding list of slope potentials #
-                        slope_potentials = [self.data_dict[current][0] for current in slope_currents]
-
-                        # calculate the slope of the data points surrounding the vertex #
-                        # (a ±5% range)
-                        slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
-
-                        # using this slope, create a linear baseline using the entire
-                        # range of potentials chosen by the user
-                        proto_baseline = []
-                        for index in range(len(baseline_currents)):
-                            proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
-
-                        # remove any currents that are above/below the currents of the segment
-                        linear_baseline = []
-                        baseline_indeces = []
-                        for index in range(len(proto_baseline)):
+                        try:
                             if self.sign_dictionary[count] == 'cathodic':
-                                if proto_baseline[index] <= baseline_currents[index]:
-                                    linear_baseline.append(proto_baseline[index])
-                                    baseline_indeces.append(index)
+                                vertex_current = min(vertex1,vertex2)
+                            elif self.sign_dictionary[count] == 'anodic':
+                                vertex_current = max(vertex1,vertex2)
+
+                            # retrieve the corresponding potential of the vertex current
+                            vertex_potential = self.data_dict[vertex_current][0]
+
+                            # retrieve the corresponding index of the vertex current/potential
+                            vertex_index = baseline_current_dict[vertex_current]
+                        except:
+                            print('RunInitialization: Error in Solution Phase Vertex Calculations')
+
+                        ############################################################
+                        ### Calculate the Range to be used for baseline creation ###
+                        ############################################################
+                        try:
+                            # set the `range` to 5% of the total points #
+                            value_range = round(0.05*len(baseline_currents))
+
+                            # upper limit is the max index value before the index
+                            # is out of the bounds of the adjusted currents
+                            upper_limit = len(baseline_currents) - vertex_index
+
+                            if vertex_index < value_range:
+                                print('Lower Vertex is under range')
+                                lower_range = baseline_currents[:vertex_index]
+                                lower_range_potentials = baseline_potentials[:vertex_index]
+                            else:
+                                lower_index = vertex_index - value_range
+                                lower_range = baseline_currents[lower_index:vertex_index]
+                                lower_range_potentials = baseline_potentials[lower_index:vertex_index]
+                            if vertex_index < upper_limit:
+                                print('Upper vertex below upper limit')
+                                upper_index = vertex_index + value_range
+                                upper_range = baseline_currents[vertex_index:upper_index]
+                                upper_range_potentials = baseline_potentials[vertex_index:upper_index]
+
+                            else:
+                                upper_range = baseline_currents[vertex_index:]
+                                upper_range_potentials = baseline_potentials[vertex_index:]
+                        except:
+                            print('\nRunInitialization: Error in Solution Phase Range Calculation')
+
+                        try:
+                            # create a list with the entire range of current values #
+                            slope_currents = []
+                            for value in lower_range:
+                                slope_currents.append(value)
+                            for value in upper_range:
+                                slope_currents.append(value)
+
+                            # create a list of slope potentials
+                            slope_potentials = []
+                            for value in lower_range_potentials:
+                                slope_potentials.append(value)
+                            for value in upper_range_potentials:
+                                slope_potentials.append(value)
+
+
+                            # calculate the slope of the data points surrounding the vertex #
+                            # (a ±5% range)
+                            slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
+
+                            # using this slope, create a linear baseline using the entire
+                            # range of potentials chosen by the user
+                            proto_baseline = []
+                            for index in range(len(baseline_currents)):
+                                proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
+                        except:
+                            print('RunInitialization: Error in Solution Phase Slope Calculation')
+
+                        linear_baseline,baseline_indeces,baseline_potentials,baseline_currents,peak_index_dict = self.extract_baseline(count,proto_baseline,baseline_potentials,baseline_currents)
+
+                        ####################################
+                        ### Calculate the Peak Potential ###
+                        ####################################
+
+                        try:
+
+
+                            # recalculate the peak potential of the baseline currents #
+                            if self.sign_dictionary[count] == 'cathodic':
+                                peak_potential = self.data_dict[max(baseline_currents)]  # extract the potential of the peak current
+
                             if self.sign_dictionary[count] == 'anodic':
-                                if proto_baseline[index] >= baseline_currents[index]:
-                                    linear_baseline.append(proto_baseline[index])
-                                    baseline_indeces.append(index)
+                                peak_potential = self.data_dict[min(baseline_currents)]  # extract the potential of the peak current
 
-                        # adjust the baseline values to those that correspond
-                        # with the newly created linear baseline
-                        baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
-                        baseline_currents = [baseline_currents[index] for index in baseline_indeces]
-
-                        peak_index_dict = {}
-                        index = 0
-                        for potential in baseline_potentials:
-                            peak_index_dict[potential] = index
-                            index += 1
-
-                        # recalculate the peak potential of the baseline currents #
-                        if self.sign_dictionary[count] == 'cathodic':
-                            peak_potential = self.data_dict[max(baseline_currents)]  # extract the potential of the peak current
-                        if self.sign_dictionary[count] == 'anodic':
-                            peak_potential = self.data_dict[min(baseline_currents)]  # extract the potential of the peak current
-
-                        baseline_peak_index = peak_index_dict[peak_potential]
-
-                        vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
-
-                        vertex_data[count] = vertices
+                            peak_potential = peak_potential[0]
+                            baseline_peak_index = peak_index_dict[peak_potential]
+                            vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
+                            vertex_data[count] = vertices
+                        except:
+                            print('RunInitialization: Error in Solution Phase Peak Potential Calculation')
 
                     except:
                         print('RunInitialization: Error in Solution Phase Baseline Creation')
@@ -2485,6 +2473,7 @@ class InitializeFigureCanvas():
                         local_data_list.append(data)
                     except:
                         print('RunInitialization: Error in AUC')
+
             ###########################
             ## Set the X and Y Axes ###
             ###########################
@@ -2505,6 +2494,7 @@ class InitializeFigureCanvas():
                 #- local_data_list = [Peak_Height_forward,Peak_Height_reverse]
                 local_min = min(local_data_list)
                 local_max = max(local_data_list)
+
                 #-- set the ylimits as the max/min plus/minus the aboslute value
                 #-- of their value times the InputFrame global objext 'data_max/min'
                 ax[0,1].set_ylim(local_min-abs(data_min*local_min),local_max+abs(data_max*local_max))  # raw peak height
@@ -2656,7 +2646,38 @@ class InitializeFigureCanvas():
 
         return vertex_potential,index
 
+    def extract_baseline(self,count,proto_baseline,baseline_potentials,baseline_currents):
+        try:
+            # remove any currents that are above/below the currents of the segment
+            linear_baseline = []
+            baseline_indeces = []
+            for index in range(len(proto_baseline)):
+                if self.sign_dictionary[count] == 'cathodic':
+                    if proto_baseline[index] <= baseline_currents[index]:
+                        linear_baseline.append(proto_baseline[index])
+                        baseline_indeces.append(index)
+                if self.sign_dictionary[count] == 'anodic':
+                    if proto_baseline[index] >= baseline_currents[index]:
+                        linear_baseline.append(proto_baseline[index])
+                        baseline_indeces.append(index)
 
+            if len(linear_baseline) == 0:
+                linear_baseline = proto_baseline
+                baseline_indeces = [value for value in range(len(proto_baseline))]
+
+            baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+            baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+            peak_index_dict = {}
+            index = 0
+            for potential in baseline_potentials:
+                peak_index_dict[potential] = index
+                index += 1
+
+            return linear_baseline, baseline_indeces, baseline_potentials, baseline_currents,peak_index_dict
+
+        except:
+            print('RunInitialization: Error in extract_baseline()')
                                 #############################################################
                                 #############################################################
                                 ###              END OF INITIATION FUNCTIONS              ###
@@ -3201,37 +3222,54 @@ class ElectrochemicalAnimation():
                     linear_baseline = []
                     baseline_indeces = []
 
-                    #-- make sure the baseline currents to not go out of the
-                    #-- boundaries of the current segment
-                    for index in range(len(proto_baseline)):
-                        if self.sign_dictionary[count] == 'cathodic':
-                            if proto_baseline[index] <= baseline_currents[index]:
-                                linear_baseline.append(proto_baseline[index])
-                                baseline_indeces.append(index)
-                        if self.sign_dictionary[count] == 'anodic':
-                            if proto_baseline[index] >= baseline_currents[index]:
-                                linear_baseline.append(proto_baseline[index])
-                                baseline_indeces.append(index)
+                    try:
+                        #-- make sure the baseline currents to not go out of the
+                        #-- boundaries of the current segment
+                        for index in range(len(proto_baseline)):
+                            if self.sign_dictionary[count] == 'cathodic':
+                                if proto_baseline[index] <= baseline_currents[index]:
+                                    linear_baseline.append(proto_baseline[index])
+                                    baseline_indeces.append(index)
+                            if self.sign_dictionary[count] == 'anodic':
+                                if proto_baseline[index] >= baseline_currents[index]:
+                                    linear_baseline.append(proto_baseline[index])
+                                    baseline_indeces.append(index)
+                    except:
+                        print('\n%s_raw_generator: Error in Surface Phase Linear Baseline Adjustment' % self.spacer)
 
-                    baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
-                    baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+                    if len(linear_baseline) == 0:
+                        linear_baseline = proto_baseline
+                        baseline_indeces = [value for value in range(len(proto_baseline))]
 
+                    try:
+                        baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                        baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+                    except:
+                        print('\n%s_raw_generator: Error in Surface Phase Baseline Value Adjustment' % self.spacer)
+                    #-- create a dictionary correlating potentials to their
+                    #-- index value
                     peak_index_dict = {}
                     index = 0
                     for potential in baseline_potentials:
                         peak_index_dict[potential] = index
                         index += 1
 
-                    # recalculate the peak potential of the baseline currents #
-                    if self.sign_dictionary[count] == 'cathodic':
-                        peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
-                    if self.sign_dictionary[count] == 'anodic':
-                        peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+                    try:
+                        # recalculate the peak potential of the baseline currents #
+                        if self.sign_dictionary[count] == 'cathodic':
+                            peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                        if self.sign_dictionary[count] == 'anodic':
+                            peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
 
-                    baseline_peak_index = peak_index_dict[peak_potential]
+                        baseline_peak_index = peak_index_dict[peak_potential]
+                    except:
+                        print('\n%s_raw_generator: Error in Peak Potential Extraction' % self.spacer)
 
-                    vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
-                    vertex_data[count] = vertices
+                    try:
+                        vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
+                        vertex_data[count] = vertices
+                    except:
+                        print('\n%s_raw_generator: Error in Vertices Creation' % self.spacer)
 
                 except:
                     print('\n%s_raw_generator: Error in Surface Bound Baseline Creation\n' % self.spacer)
@@ -3239,99 +3277,127 @@ class ElectrochemicalAnimation():
             #-- if it is a solution phase species --#
             elif mass_transport == 'solution':
                 try:
-                    if self.sign_dictionary[count] == 'cathodic':
-                        vertex_current = min(vertex1,vertex2)
-                    elif self.sign_dictionary[count] == 'anodic':
-                        vertex_current = max(vertex1,vertex2)
-
-                    # retrieve the corresponding potential of the vertex current
-                    vertex_potential = self.data_dict[vertex_current][0]
-
-                    # retrieve the corresponding index of the vertex current/potential
-                    vertex_index = baseline_current_dict[vertex_current]
-
-                    # set the `range` to 5% of the total points #
-                    #print('Baseline Currents:',len(baseline_currents))
-                    value_range = round(0.02*len(self.segment_currents))
-                    #print('Value Range:',value_range)
-
-                    # upper limit is the max index value before the index
-                    # is out of the bounds of the adjusted currents
-                    upper_limit = len(baseline_currents) - vertex_index
-
-                    if vertex_index < value_range:
-                        #print('Lower Vertex is under range')
-                        lower_range = baseline_currents[:vertex_index]
-                    else:
-                        lower_index = vertex_index - value_range
-                        lower_range = baseline_currents[lower_index:vertex_index]
-
-                    if vertex_index < upper_limit:
-                        #print('Upper vertex below upper limit')
-                        upper_index = vertex_index + value_range
-                        upper_range = baseline_currents[vertex_index:upper_index]
-                    else:
-                        upper_range = baseline_currents[vertex_index:]
-
-                    # create a list with the entire range of current values #
-                    slope_currents = []
-                    for value in lower_range:
-                        slope_currents.append(value)
-                    for value in upper_range:
-                        slope_currents.append(value)
-                    #print('Slope Currents:',slope_currents,len(slope_currents))
-
-                    # create a corresponding list of slope potentials #
-                    slope_potentials = [self.data_dict[current][0] for current in slope_currents]
-                    #print('Slope Potentials',slope_potentials,len(slope_potentials))
-
-                    # calculate the slope of the data points surrounding the vertex #
-                    # (a ±5% range)
-                    slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
-                    #print('%s Vertex Current:' % count,vertex_current)
-                    #print('%s%s Slope:' % (self.spacer,count),slope)
-
-                    # using this slope, create a linear baseline using the entire
-                    # range of potentials chosen by the user
-                    proto_baseline = []
-                    for index in range(len(baseline_currents)):
-                        proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
-                    # remove any currents that are above/below the currents of the segment
-                    linear_baseline = []
-                    baseline_indeces = []
-
-                    for index in range(len(proto_baseline)):
-
+                    try:
                         if self.sign_dictionary[count] == 'cathodic':
-                            if proto_baseline[index] <= baseline_currents[index]:
-                                linear_baseline.append(proto_baseline[index])
-                                baseline_indeces.append(index)
+                            vertex_current = min(vertex1,vertex2)
+                        elif self.sign_dictionary[count] == 'anodic':
+                            vertex_current = max(vertex1,vertex2)
+
+                        # retrieve the corresponding potential of the vertex current
+                        vertex_potential = self.data_dict[vertex_current][0]
+
+                        # retrieve the corresponding index of the vertex current/potential
+                        vertex_index = baseline_current_dict[vertex_current]
+                    except:
+                        print('\n%s_raw_generator: Error in Solution Phase Vertex Calculation' % self.spacer)
+
+                    ############################################################
+                    ### Calculate the Range to be used for baseline creation ###
+                    ############################################################
+                    try:
+                        # set the `range` to 5% of the total points #
+                        #print('Baseline Currents:',len(baseline_currents))
+                        value_range = round(0.02*len(self.segment_currents))
+                        #print('Value Range:',value_range)
+
+                        # upper limit is the max index value before the index
+                        # is out of the bounds of the adjusted currents
+                        upper_limit = len(baseline_currents) - vertex_index
+
+                        if vertex_index < value_range:
+                            lower_range = baseline_currents[:vertex_index]
+                            lower_range_potentials = baseline_potentials[:vertex_index]
+                        else:
+                            lower_index = vertex_index - value_range
+                            lower_range = baseline_currents[lower_index:vertex_index]
+                            lower_range_potentials = baseline_potentials[lower_index:vertex_index]
+                        if vertex_index < upper_limit:
+                            upper_index = vertex_index + value_range
+                            upper_range = baseline_currents[vertex_index:upper_index]
+                            upper_range_potentials = baseline_potentials[vertex_index:upper_index]
+
+                        else:
+                            upper_range = baseline_currents[vertex_index:]
+                            upper_range_potentials = baseline_potentials[vertex_index:]
+                    except:
+                        print('\n%s_raw_generator: Error in Solution Phase Range Calculation' % self.spacer)
+
+                    try:
+                        # create a list with the entire range of current values #
+                        slope_currents = []
+                        for value in lower_range:
+                            slope_currents.append(value)
+                        for value in upper_range:
+                            slope_currents.append(value)
+
+                        # create a list of slope potentials
+                        slope_potentials = []
+                        for value in lower_range_potentials:
+                            slope_potentials.append(value)
+                        for value in upper_range_potentials:
+                            slope_potentials.append(value)
+
+                        # create a corresponding list of slope potentials #
+
+                        # calculate the slope of the data points surrounding the vertex #
+                        # (a ±5% range)
+                        slope = (slope_currents[-1]-slope_currents[0])/(slope_potentials[-1]-slope_potentials[0])
+
+
+                    except:
+                        print('\n%s_raw_generator: Error in Solution Phase Slope Calculation' % self.spacer)
+
+                    try:
+                        # using this slope, create a linear baseline using the entire
+                        # range of potentials chosen by the user
+                        proto_baseline = []
+                        for index in range(len(baseline_currents)):
+                            proto_baseline.append(slope*(baseline_potentials[index]-vertex_potential)+vertex_current)
+
+                        # remove any currents that are above/below the currents of the segment
+                        linear_baseline = []
+                        baseline_indeces = []
+
+                        for index in range(len(proto_baseline)):
+
+                            if self.sign_dictionary[count] == 'cathodic':
+                                if proto_baseline[index] <= baseline_currents[index]:
+                                    linear_baseline.append(proto_baseline[index])
+                                    baseline_indeces.append(index)
+                            if self.sign_dictionary[count] == 'anodic':
+                                if proto_baseline[index] >= baseline_currents[index]:
+                                    linear_baseline.append(proto_baseline[index])
+                                    baseline_indeces.append(index)
+                        if len(linear_baseline) == 0:
+                            linear_baseline = proto_baseline
+                            baseline_indeces = [value for value in range(len(proto_baseline))]
+                    except:
+                        print('\n%s_raw_generator: Error in Solution Phase Linear Baseline Calculation' % self.spacer)
+
+                    try:
+                        # adjust the baseline values to those that correspond with the
+                        # linear baseline
+                        try:
+                            baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
+                            baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+                        except:
+                            print('\n%s_raw_generator: Error in Solution Phase Baseline Value Adjustment' % self.spacer)
+
+                        peak_index_dict = {}
+                        index = 0
+                        for potential in baseline_potentials:
+                            peak_index_dict[potential] = index
+                            index += 1
+
+                        # recalculate the peak potential of the baseline currents #
+                        if self.sign_dictionary[count] == 'cathodic':
+                            peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
                         if self.sign_dictionary[count] == 'anodic':
-                            if proto_baseline[index] >= baseline_currents[index]:
-                                linear_baseline.append(proto_baseline[index])
-                                baseline_indeces.append(index)
-
-                    # adjust the baseline values to those that correspond with the
-                    # linear baseline
-                    baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
-                    baseline_currents = [baseline_currents[index] for index in baseline_indeces]
-
-                    peak_index_dict = {}
-                    index = 0
-                    for potential in baseline_potentials:
-                        peak_index_dict[potential] = index
-                        index += 1
-
-                    # recalculate the peak potential of the baseline currents #
-                    if self.sign_dictionary[count] == 'cathodic':
-                        peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
-                    if self.sign_dictionary[count] == 'anodic':
-                        peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
-
-                    baseline_peak_index = peak_index_dict[peak_potential]
-
-                    vertices = [(baseline_potentials[0],linear_baseline[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],linear_baseline[-1]))]
-
+                            peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+                        baseline_peak_index = peak_index_dict[peak_potential]
+                        vertices = [(baseline_potentials[0],linear_baseline[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],linear_baseline[-1]))]
+                    except:
+                        print('\n%s_raw_generator: Error in Solultion Phase Peak Potential Calculation' % self.spacer)
                 except:
                     print('\n%s_raw_generator: Error in Solution Phase Baseline Creation\n' % self.spacer)
 
@@ -4007,26 +4073,27 @@ class TextFileExport():
         TxtList = []
         TxtList.append('File')
 
-        if SelectedOptions == 'Peak Height Extraction':
-            TxtList.append('Forwards_PeakHeight_(µA)')
-            TxtList.append('Reverse_PeakHeight_(µA)')
-            TxtList.append('Forward_Peak_Potential_(V)')
-            TxtList.append('Reverse_Peak_Potential_(V)')
+        for num in self.electrode_list:
+            if SelectedOptions == 'Peak Height Extraction':
+                TxtList.append('E%s_Forwards_PeakHeight_(µA)' % (str(num)))
+                TxtList.append('E%s_Reverse_PeakHeight_(µA)' % (str(num)))
+                TxtList.append('E%s_Forward_Peak_Potential_(V)' % (str(num)))
+                TxtList.append('E%s_Reverse_Peak_Potential_(V)' % (str(num)))
 
-        elif SelectedOptions == 'Area Under the Curve':
-            TxtList.append('Forwards_AUC_(µC)')
-            TxtList.append('Reverse_AUC_(µC)')
-            TxtList.append('Forward_Peak_Potential_(V)')
-            TxtList.append('Reverse_Peak_Potential_(V)')
+            elif SelectedOptions == 'Area Under the Curve':
+                TxtList.append('E%s_Forwards_AUC_(µC)' % (str(num)))
+                TxtList.append('E%s_Reverse_AUC_(µC)' % (str(num)))
+                TxtList.append('E%s_Forward_Peak_Potential_(V)' % (str(num)))
+                TxtList.append('E%s_Reverse_Peak_Potential_(V)' % (str(num)))
 
-        TxtList.append(''.join(str(Voltage1)+'V_Forwards_(µA)'))
-        TxtList.append(''.join(str(Voltage2)+'V_Forwards_(µA)'))
-        TxtList.append(''.join(str(Voltage1)+'V_Reverse_(µA)'))
-        TxtList.append(''.join(str(Voltage2)+'V_Reverse_(µA)'))
+            TxtList.append('E%s_%sV_Forwards_(µA)' % (str(num),str(Voltage1)))
+            TxtList.append('E%s_%sV_Forwards_(µA)' % (str(num),str(Voltage2)))
+            TxtList.append('E%s_%sV_Reverse_(µA)' % (str(num),str(Voltage1)))
+            TxtList.append('E%s_%sV_Reverse_(µA)' % (str(num),str(Voltage2)))
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.txt')
-            LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % electrode + '.txt')
+            LocalFileHandle = ''.join(LocalFileHandle[0] + '.txt')
             with open(LocalFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
                 writer.writerow(TxtList)
@@ -4037,6 +4104,7 @@ class TextFileExport():
     def RealTimeExport(self, _file_):
 
         index = _file_ - 1
+
         list = []
         list.append(str(_file_))
 
@@ -4060,22 +4128,13 @@ class TextFileExport():
             list.append(voltage2_data[num]['reverse'][index])
 
             LocalFileHandle = FileHandle.split('.txt')
-            LocalFileHandle = ''.join(LocalFileHandle[0] + '_E%d' % (num+1) + '.txt')
-            #--- Write the data into the .txt file ---#
-            with open(LocalFileHandle,'a',encoding='utf-8', newline = '') as input:
-                writer = csv.writer(input, delimiter = ' ')
-                writer.writerow(list)
-            with open(LocalFileHandle,'r',encoding='utf-8', newline = '') as filecontents:
-                filedata =  filecontents.read()
-            filedata = filedata.replace('[','')
-            filedata = filedata.replace('"','')
-            filedata = filedata.replace(']','')
-            filedata = filedata.replace(',','')
-            filedata = filedata.replace('\'','')
-            with open(LocalFileHandle,'w',encoding='utf-8', newline = '') as output:
-                output.write(filedata)
+            LocalFileHandle = ''.join(LocalFileHandle[0] + '.txt')
 
-
+        print('\n%s TextFileExport' % LocalFileHandle,list)
+        #--- Write the data into the .txt file ---#
+        with open(LocalFileHandle,'a',encoding='utf-8', newline = '') as input:
+            writer = csv.writer(input, delimiter = ' ')
+            writer.writerow(list)
 
 
 
