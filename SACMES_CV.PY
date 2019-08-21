@@ -2321,11 +2321,17 @@ class InitializeFigureCanvas():
                         proto_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
                         linear_baseline, baseline_indeces,baseline_potentials,baseline_currents,peak_index_dict = self.extract_baseline(count,proto_baseline,baseline_potentials,baseline_currents)
 
+                        #-- make a new dictionary with key: value
+                        #-- as baseline_current: baseline_potential
+                        baseline_dict = {}
+                        for index in range(len(baseline_currents)):
+                            baseline_dict.setdefault(baseline_currents[index],[]).append(baseline_potentials[index])
+
                         # recalculate the peak potential of the baseline currents #
                         if self.sign_dictionary[count] == 'cathodic':
-                            peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[max(baseline_currents)][0]  # extract the potential of the peak current
                         if self.sign_dictionary[count] == 'anodic':
-                            peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[min(baseline_currents)][0]  # extract the potential of the peak current
 
                         baseline_peak_index = peak_index_dict[peak_potential]
 
@@ -2420,15 +2426,19 @@ class InitializeFigureCanvas():
 
                         try:
 
+                            #-- make a new dictionary with key: value
+                            #-- as baseline_current: baseline_potential
+                            baseline_dict = {}
+                            for index in range(len(baseline_currents)):
+                                baseline_dict.setdefault(baseline_currents[index],[]).append(baseline_potentials[index])
 
                             # recalculate the peak potential of the baseline currents #
                             if self.sign_dictionary[count] == 'cathodic':
-                                peak_potential = self.data_dict[max(baseline_currents)]  # extract the potential of the peak current
+                                peak_potential = baseline_dict[max(baseline_currents)][0]  # extract the potential of the peak current
 
                             if self.sign_dictionary[count] == 'anodic':
-                                peak_potential = self.data_dict[min(baseline_currents)]  # extract the potential of the peak current
+                                peak_potential = baseline_dict[min(baseline_currents)[0]]  # extract the potential of the peak current
 
-                            peak_potential = peak_potential[0]
                             baseline_peak_index = peak_index_dict[peak_potential]
                             vertices = [(baseline_potentials[0],baseline_currents[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],baseline_currents[-1]))]
                             vertex_data[count] = vertices
@@ -3244,8 +3254,15 @@ class ElectrochemicalAnimation():
                     try:
                         baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
                         baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                        #-- make a new dictionary with key: value
+                        #-- as baseline_current: baseline_potential
+                        baseline_dict = {}
+                        for index in range(len(baseline_currents)):
+                            baseline_dict.setdefault(baseline_currents[index],[]).append(baseline_potentials[index])
                     except:
                         print('\n%s_raw_generator: Error in Surface Phase Baseline Value Adjustment' % self.spacer)
+
                     #-- create a dictionary correlating potentials to their
                     #-- index value
                     peak_index_dict = {}
@@ -3257,19 +3274,19 @@ class ElectrochemicalAnimation():
                     try:
                         # recalculate the peak potential of the baseline currents #
                         if self.sign_dictionary[count] == 'cathodic':
-                            peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[max(baseline_currents)][0]  # extract the potential of the peak current
                         if self.sign_dictionary[count] == 'anodic':
-                            peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[min(baseline_currents)][0]  # extract the potential of the peak current
 
                         baseline_peak_index = peak_index_dict[peak_potential]
                     except:
-                        print('\n%s_raw_generator: Error in Peak Potential Extraction' % self.spacer)
+                        print('\n%s_raw_generator: Error in Surface Bound Peak Potential Extraction' % self.spacer)
 
                     try:
                         vertices = [(vertex1_potential,vertex1), *zip(baseline_potentials,baseline_currents), ((vertex2_potential,vertex2))]
                         vertex_data[count] = vertices
                     except:
-                        print('\n%s_raw_generator: Error in Vertices Creation' % self.spacer)
+                        print('\n%s_raw_generator: Error in Surface Bound Vertices Creation' % self.spacer)
 
                 except:
                     print('\n%s_raw_generator: Error in Surface Bound Baseline Creation\n' % self.spacer)
@@ -3380,6 +3397,12 @@ class ElectrochemicalAnimation():
                         try:
                             baseline_potentials = [baseline_potentials[index] for index in baseline_indeces]
                             baseline_currents = [baseline_currents[index] for index in baseline_indeces]
+
+                            #-- make a new dictionary with key: value
+                            #-- as baseline_current: baseline_potential
+                            baseline_dict = {}
+                            for index in range(len(baseline_currents)):
+                                baseline_dict.setdefault(baseline_currents[index],[]).append(baseline_potentials[index])
                         except:
                             print('\n%s_raw_generator: Error in Solution Phase Baseline Value Adjustment' % self.spacer)
 
@@ -3391,9 +3414,10 @@ class ElectrochemicalAnimation():
 
                         # recalculate the peak potential of the baseline currents #
                         if self.sign_dictionary[count] == 'cathodic':
-                            peak_potential = self.data_dict[max(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[max(baseline_currents)][0]  # extract the potential of the peak current
                         if self.sign_dictionary[count] == 'anodic':
-                            peak_potential = self.data_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+                            peak_potential = baseline_dict[min(baseline_currents)][0]  # extract the potential of the peak current
+
                         baseline_peak_index = peak_index_dict[peak_potential]
                         vertices = [(baseline_potentials[0],linear_baseline[0]), *zip(baseline_potentials,baseline_currents), ((baseline_potentials[-1],linear_baseline[-1]))]
                     except:
