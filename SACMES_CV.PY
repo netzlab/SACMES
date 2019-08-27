@@ -1077,31 +1077,28 @@ class SetupFrame(tk.Frame):
         self.Voltage1Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage1Warning = False
 
-        if not AlreadyReset:
-            self.Voltage1Exists = False
-        else:
-            self.Voltage1Exists = True
-
         self.Voltage2Label = tk.Label(self.SelectUniqueVoltages, text = 'Voltage 2', font=MEDIUM_FONT).grid(row=1,column=1,padx=5,pady=5)
         self.Voltage2 = tk.Entry(self.SelectUniqueVoltages, width=7)
         self.Voltage2.grid(row=2,column=1,padx=5,pady=5)
 
         self.Voltage2Error = tk.Label(self.SelectUniqueVoltages,text='Select A Voltage',fg='red',font=SMALL_FONT)
         self.Voltage2Warning = False
-        if not AlreadyReset:
-            self.Voltage2Exists = False
-        else:
-            self.Voltage2Exists = True
-
-
 
         if AlreadyReset:
-            self.Voltage1.insert(END,Voltage1)
-            self.Voltage2.insert(END,Voltage2)
+            if probe1_boolean.get():
+                self.Voltage1.insert(END,Voltage1)
+                self.Voltage1Exists = True
+            else:
+                self.Voltage1Exists = False
+            if probe2_boolean.get():
+                self.Voltage2.insert(END,Voltage2)
+                self.Voltage2Exists = True
+            else:
+                self.Voltage2Exists = False
 
-        self.SelectVoltages = tk.Button(self.SelectUniqueVoltages, text = 'Select Voltages',font=MEDIUM_FONT, command = lambda: self.SelectVoltagesFunction())
-        self.SelectVoltages.grid(row=5,column=0,columnspan=2,pady=5,padx=5)
-
+        else:
+            self.Voltage1Exists = False
+            self.Voltage2Exists = False
 
         #--- Create a frame that will contain all of the widgets ---#
         AdjustmentFrame = tk.Frame(self, relief = 'groove', bd=3)
@@ -1256,10 +1253,6 @@ class SetupFrame(tk.Frame):
         potential_boolean.set(True)
         self.visualize_potential = self.plot_visualization.add_checkbutton(label='Peak Potential',onvalue=True,offvalue=False,variable=potential_boolean)
 
-        probe_boolean = tk.BooleanVar()
-        probe_boolean.set(True)
-        self.visualize_probes = self.plot_visualization.add_checkbutton(label='Probe Potentials',onvalue=True,offvalue=False,variable=probe_boolean)
-
     def mass_transport(self, transport):
         global mass_transport
 
@@ -1309,10 +1302,12 @@ class SetupFrame(tk.Frame):
 
         if self.reverse_segment is not None:
             if self.Voltage1Exists:
-                self.check_V1(Voltage1)
+                if probe1_boolean.get():
+                    self.check_V1(Voltage1)
 
             if self.Voltage2Exists:
-                self.check_V2(Voltage2)
+                if probe2_boolean.get():
+                    self.check_V2(Voltage2)
 
         self.blit_data(self.setup_artists)
 
@@ -1339,10 +1334,12 @@ class SetupFrame(tk.Frame):
             self.ForwardsSelectionExists = True
 
         if self.Voltage1Exists:
-            self.check_V1(Voltage1)
+            if probe1_boolean.get():
+                self.check_V1(Voltage1)
 
         if self.Voltage2Exists:
-            self.check_V2(Voltage2)
+            if probe2_boolean.get():
+                self.check_V2(Voltage2)
 
         self.blit_data(self.setup_artists)
 
@@ -1376,30 +1373,39 @@ class SetupFrame(tk.Frame):
         self.blit_data(self.setup_artists)
 
     def SelectVoltagesFunction(self):
-        global Voltage1, Voltage2
+        global Voltage1, Voltage2, Voltage1Exists, Voltage2Exists
 
-        Voltage1 = float(self.Voltage1.get())
-        Voltage2 = float(self.Voltage2.get())
+        Voltage1 = self.Voltage1.get()
+        Voltage2 = self.Voltage2.get()
 
-        if Voltage1 is not None:
+        if len(Voltage1) > 0:
             try:
+                Voltage1 = float(Voltage1)
                 self.check_V1(Voltage1)
 
             except:
                 print('\nCould not retrieve voltage 1')
 
-        if Voltage2 is not None:
+        else:
+            self.Voltage1Exists = False
+            Voltage1Exists = self.Voltage1Exists
+
+        if len(Voltage2) > 0:
             try:
+                Voltage2 = float(Voltage2)
                 self.check_V2(Voltage2)
             except:
                 print('\nCould not retrieve voltage 2')
+        else:
+            self.Voltage2Exists = False
+            Voltage2Exists = self.Voltage2Exists
 
         if self.ForwardsSelectionExists:
             if self.ReverseSelectionExists:
                 self.blit_data(self.setup_artists)
 
     def check_V1(self, voltage):
-        global Voltage1
+        global Voltage1, Voltage1Exists
 
         Voltage1 = ClosestVoltageEstimation(voltage,self.potentials)
 
@@ -1414,6 +1420,7 @@ class SetupFrame(tk.Frame):
 
         if passkey:
             self.Voltage1Exists = True
+            Voltage1Exists = self.Voltage1Exists
 
             if self.Voltage1Warning:
                 self.Voltage1Error.grid_forget()
@@ -1427,11 +1434,12 @@ class SetupFrame(tk.Frame):
 
             if self.Voltage1Exists:
                 self.Voltage1Exists = False
+                Voltage1Exists = self.Voltage1Exists
 
             return False
 
     def check_V2(self, voltage):
-        global Voltage2
+        global Voltage2, Voltage2Exists
 
         Voltage2 = ClosestVoltageEstimation(voltage,self.potentials)
 
@@ -1446,6 +1454,7 @@ class SetupFrame(tk.Frame):
 
         if passkey:
             self.Voltage2Exists = True
+            Voltage2Exists = self.Voltage2Exists
 
             if self.Voltage2Warning:
                 self.Voltage2Error.grid_forget()
@@ -1459,6 +1468,7 @@ class SetupFrame(tk.Frame):
 
             if self.Voltage2Exists:
                 self.Voltage2Exists = False
+                Voltage2Exists = self.Voltage2Exists
 
             return False
 
@@ -1508,6 +1518,7 @@ class SetupFrame(tk.Frame):
         self.AlterExportPathButton['text'] = DataFolder
 
     def Checkpoint(self):
+        global probe1_boolean, probe2_boolean
 
         passkey = True
 
@@ -1530,23 +1541,31 @@ class SetupFrame(tk.Frame):
             passkey = False
 
 
+        ######################
+        ### Probe Voltages ###
+        ######################
+
+        self.SelectVoltagesFunction()
+
+        probe1_boolean = tk.BooleanVar()
+        probe2_boolean = tk.BooleanVar()
+
         if self.Voltage1Exists:
+            probe1_boolean.set(True)
+
             if self.Voltage1Warning:
                 self.Voltage1Error.grid_forget()
         else:
-            self.Voltage1Error.grid(row=4,column=0)
-            self.Voltage1Warning = True
-
-            passkey = False
+            probe1_boolean.set(False)
 
         if self.Voltage2Exists:
+            probe2_boolean.set(True)
+
             if self.Voltage2Warning:
                 self.Voltage2Error.grid_forget()
-        else:
-            self.Voltage2Error.grid(row=4,column=1)
-            self.Voltage2Warning = True
 
-            passkey = False
+        else:
+            probe2_boolean.set(False)
 
         if passkey:
             self.Initialize()
@@ -2146,7 +2165,8 @@ class InitializeFigureCanvas():
         self.reverse_boolean = reverse_boolean.get()
         self.analysis_boolean = analysis_boolean.get()
         self.potential_boolean = potential_boolean.get()
-        self.probe_boolean = probe_boolean.get()
+        self.probe1_boolean = probe1_boolean.get()
+        self.probe2_boolean = probe2_boolean.get()
 
         row_value = 1
         column_value = 1
@@ -2161,9 +2181,16 @@ class InitializeFigureCanvas():
                 if self.reverse_boolean:
                     column_value = 2
 
-        if self.probe_boolean:
+        if self.probe1_boolean:
             row_value += 1
-            column_value = 2
+
+        if self.probe2_boolean:
+            if self.probe1_boolean:
+                column_value = 2
+
+            else:
+                row_value += 1
+
 
         #---Set the electrode index value---#
         list_val = _get_listval(electrode)
@@ -2321,39 +2348,68 @@ class InitializeFigureCanvas():
                     peak_reverse, = self.reverse_plot.plot([],[],'ro',MarkerSize=1)
                     plots['peak reverse'] = peak_reverse
 
-        if self.probe_boolean:
-            self.volt1_plot = fig.add_subplot(ax[row_value-1,0])
-            self.volt2_plot = fig.add_subplot(ax[row_value-1,1])
+        if self.probe1_boolean:
+            if self.probe2_boolean:
+
+                self.volt1_plot = fig.add_subplot(ax[row_value-1,0])
+                self.volt2_plot = fig.add_subplot(ax[row_value-1,1])
+
+                volt2_plot = self.volt2_plot
+                figures[num]['volt2 plot'] = volt2_plot
+
+                #-- User-specified voltage Plots --#
+                self.volt2_plot.set_xlabel('File Number')    # Voltage 2
+                self.volt2_plot.set_ylabel('Current/µA')  # Voltage 2
+
+                #-- Voltage Probes 1 and 2 --#
+                self.volt2_plot.set_xlim(-0.05,xlim_factor+0.1)
+
+                self.volt2_plot.set_title(''.join(str(Voltage2)+'V'))
+
+
+                #-- Voltage 2 Artists --#
+                volt2_forward, = self.volt2_plot.plot([],[],'go',MarkerSize=1)
+                volt2_reverse, = self.volt2_plot.plot([],[],'ro',MarkerSize=1)
+
+                plots['volt2 forward'] = volt2_forward
+                plots['volt2 reverse'] = volt2_reverse
+
+            else:
+                self.volt1_plot = fig.add_subplot(ax[row_value-1,:])
 
             volt1_plot = self.volt1_plot
             figures[num]['volt1 plot'] = volt1_plot
+            self.volt1_plot.set_xlabel('File Number')    # Voltage 1
+            self.volt1_plot.set_ylabel('Current/µA')  # Voltage 1
+            self.volt1_plot.set_xlim(-0.05,xlim_factor+0.1)
+            self.volt1_plot.set_title(''.join(str(Voltage1)+'V'))
+            volt1_forward, = self.volt1_plot.plot([],[],'go',MarkerSize=1)
+            volt1_reverse, = self.volt1_plot.plot([],[],'ro',MarkerSize=1)
+
+            plots['volt1 forward'] = volt1_forward
+            plots['volt1 reverse'] = volt1_reverse
+
+
+        elif self.probe2_boolean:
+            self.volt2_plot = fig.add_subplot(ax[row_value-1,:])
 
             volt2_plot = self.volt2_plot
             figures[num]['volt2 plot'] = volt2_plot
 
             #-- User-specified voltage Plots --#
-            self.volt1_plot.set_xlabel('File Number')    # Voltage 1
             self.volt2_plot.set_xlabel('File Number')    # Voltage 2
-            self.volt1_plot.set_ylabel('Current/µA')  # Voltage 1
             self.volt2_plot.set_ylabel('Current/µA')  # Voltage 2
 
             #-- Voltage Probes 1 and 2 --#
-            self.volt1_plot.set_xlim(-0.05,xlim_factor+0.1)
             self.volt2_plot.set_xlim(-0.05,xlim_factor+0.1)
 
-            self.volt1_plot.set_title(''.join(str(Voltage1)+'V'))
             self.volt2_plot.set_title(''.join(str(Voltage2)+'V'))
 
-            #-- Voltage 1 Artists --#
-            volt1_forward, = self.volt1_plot.plot([],[],'go',MarkerSize=1)
-            volt1_reverse, = self.volt1_plot.plot([],[],'ro',MarkerSize=1)
 
             #-- Voltage 2 Artists --#
             volt2_forward, = self.volt2_plot.plot([],[],'go',MarkerSize=1)
             volt2_reverse, = self.volt2_plot.plot([],[],'ro',MarkerSize=1)
 
-            plots['volt1 forward'] = volt1_forward
-            plots['volt1 reverse'] = volt1_reverse
             plots['volt2 forward'] = volt2_forward
             plots['volt2 reverse'] = volt2_reverse
 
@@ -2428,9 +2484,6 @@ class InitializeFigureCanvas():
             ### Retrieve data from the File ###
             ###################################
             potentials, currents, segment_dictionary, forward, reverse = ReadData(myfile, electrode)
-
-            self.forward_boolean = forward_boolean.get()
-            self.reverse_boolean = reverse_boolean.get()
 
             ###################################################
             ### Create local data dictionaries that will be ###
@@ -2562,21 +2615,30 @@ class InitializeFigureCanvas():
                 ### Extract Data for User-Specified Voltages ###
                 ################################################
 
-                #-- if the user chose a value that does not --#
-                #-- exist, find the next closest value      --#
-                V1 = ClosestVoltageEstimation(Voltage1,self.segment_potentials)
-                V2 = ClosestVoltageEstimation(Voltage2,self.segment_potentials)
+                if self.probe1_boolean:
+                    #-- if the user chose a value that does not --#
+                    #-- exist, find the next closest value      --#
+                    V1 = ClosestVoltageEstimation(Voltage1,self.segment_potentials)
 
-                #-- find the associated index values --#
-                Voltage1_Index = self.potential_dict[V1]
-                Voltage2_Index = self.potential_dict[V2]
+                    #-- find the associated index values --#
+                    Voltage1_Index = self.potential_dict[V1]
+                    #-- and the associated currents --#
+                    Voltage1_Current = currents[Voltage1_Index]
 
-                #-- and the associated currents --#
-                Voltage1_Current = currents[Voltage1_Index]
-                Voltage2_Current = currents[Voltage2_Index]
+                    V1_data.append(Voltage1_Current)
 
-                V1_data.append(Voltage1_Current)
-                V2_data.append(Voltage2_Current)
+                if self.probe2_boolean:
+                    #-- if the user chose a value that does not --#
+                    #-- exist, find the next closest value      --#
+                    V2 = ClosestVoltageEstimation(Voltage2,self.segment_potentials)
+
+                    #-- find the associated index values --#
+                    Voltage2_Index = self.potential_dict[V2]
+
+                    #-- and the associated currents --#
+                    Voltage2_Current = currents[Voltage2_Index]
+
+                    V2_data.append(Voltage2_Current)
 
                 ###########################################################
                 ### Extract the Peak Potential and its associated index ###
@@ -2845,7 +2907,7 @@ class InitializeFigureCanvas():
                         reverse_peak = peak_potential_list['reverse']
                         self.reverse_plot.set_ylim(reverse_peak-abs(data_min*reverse_peak),reverse_peak+abs(data_max*reverse_peak))
 
-                if self.probe_boolean:
+                if self.probe1_boolean:
                     ### Probe VoltagePlots ###
 
                     #-- Set Voltage 1 Plot Y Limits as the max/min of the forward and
@@ -2853,6 +2915,7 @@ class InitializeFigureCanvas():
                     #-- of their value times the InputFrame global objext 'data_max/min'
                     self.volt1_plot.set_ylim(min(V1_data)-(V1_min*abs(min(V1_data))),max(V1_data)+abs((V1_max*max(V1_data))))
 
+                if self.probe2_boolean:
                     #-- SetVoltage 2 Plot Y Limits as the max/min of the forward and
                     #-- reverse currents for voltage 2 plus/minus the aboslute value
                     #-- of their value times the InputFrame global objext 'data_max/min'
@@ -2913,7 +2976,8 @@ class ElectrochemicalAnimation():
         self.reverse_boolean = reverse_boolean.get()
         self.analysis_boolean = analysis_boolean.get()
         self.potential_boolean = potential_boolean.get()
-        self.probe_boolean = probe_boolean.get()
+        self.probe1_boolean = probe1_boolean.get()
+        self.probe2_boolean = probe2_boolean.get()
 
         ##############################
         ## Set the generator object ##
@@ -3066,8 +3130,9 @@ class ElectrochemicalAnimation():
             if self.reverse_boolean:
                 figures[self.num]['reverse plot'].set_xlim(0,self.resize_limit+0.1)
 
-        if self.probe_boolean:
+        if self.probe1_boolean:
             figures[self.num]['volt1 plot'].set_xlim(0,self.resize_limit+0.1)
+        if self.probe2_boolean:
             figures[self.num]['volt2 plot'].set_xlim(0,self.resize_limit+0.1)
 
 
@@ -3339,23 +3404,33 @@ class ElectrochemicalAnimation():
             ################################################
             ### Extract Data for User-Specified Voltages ###
             ################################################
-            if self.probe_boolean:
+            if self.probe1_boolean:
 
                 #-- if the user chose a value that does not --#
                 #-- exist, find the next closest value      --#
                 V1 = ClosestVoltageEstimation(Voltage1,self.segment_potentials)
-                V2 = ClosestVoltageEstimation(Voltage2,self.segment_potentials)
 
                 #-- find the associated index values --#
                 Voltage1_Index = self.potential_dict[V1]
-                Voltage2_Index = self.potential_dict[V2]
 
                 #-- and the associated currents --#
                 Voltage1_Current = currents[Voltage1_Index]
-                Voltage2_Current = currents[Voltage2_Index]
 
                 #-- save the data --#
                 voltage1_data[self.num][count][self.index] = Voltage1_Current
+
+            if self.probe2_boolean:
+                #-- if the user chose a value that does not --#
+                #-- exist, find the next closest value      --#
+                V2 = ClosestVoltageEstimation(Voltage2,self.segment_potentials)
+
+                #-- find the associated index values --#
+                Voltage2_Index = self.potential_dict[V2]
+
+                #-- and the associated currents --#
+                Voltage2_Current = currents[Voltage2_Index]
+
+                #-- save the data --#
                 voltage2_data[self.num][count][self.index] = Voltage2_Current
 
             #-- retrieve the orientation of the segment --#
@@ -3746,13 +3821,13 @@ class ElectrochemicalAnimation():
                 #################
                 ### Voltage 1 ###
                 #################
-                if self.probe_boolean:
+                if self.probe1_boolean:
                     plots['volt1 forward'].set_data(self.file_list,voltage1_data[self.num]['forward'][:len(self.file_list)])
 
                 #################
                 ### Voltage 2 ###
                 #################
-                if self.probe_boolean:
+                if self.probe2_boolean:
                     plots['volt2 forward'].set_data(self.file_list,voltage2_data[self.num]['forward'][:len(self.file_list)])
 
                 #######################
@@ -3799,13 +3874,13 @@ class ElectrochemicalAnimation():
                 #################
                 ### Voltage 1 ###
                 #################
-                if self.probe_boolean:
+                if self.probe1_boolean:
                     plots['volt1 reverse'].set_data(self.file_list,voltage1_data[self.num]['reverse'][:len(self.file_list)])
 
                 #################
                 ### Voltage 2 ###
                 #################
-                if self.probe_boolean:
+                if self.probe2_boolean:
                     plots['volt2 reverse'].set_data(self.file_list,voltage2_data[self.num]['reverse'][:len(self.file_list)])
 
                 #######################
@@ -4028,7 +4103,8 @@ class TextFileExport():
         self.reverse_boolean = reverse_boolean.get()
         self.analysis_boolean = analysis_boolean.get()
         self.potential_boolean = potential_boolean.get()
-        self.probe_boolean = probe_boolean.get()
+        self.probe1_boolean = probe1_boolean.get()
+        self.probe2_boolean = probe2_boolean.get()
 
         TxtList = []
         TxtList.append('File')
@@ -4057,13 +4133,19 @@ class TextFileExport():
                     TxtList.append('E%s_Reverse_Peak_Potential_(V)' % (str(num)))
 
             #-- Voltage Probes --#
-            if self.probe_boolean:
+            if self.probe1_boolean:
                 if self.forward_boolean:
                     TxtList.append('E%s_%sV_Forwards_(µA)' % (str(num),str(Voltage1)))
-                    TxtList.append('E%s_%sV_Forwards_(µA)' % (str(num),str(Voltage2)))
+
                 if self.reverse_boolean:
                     TxtList.append('E%s_%sV_Reverse_(µA)' % (str(num),str(Voltage1)))
+
+            if self.probe2_boolean:
+                if self.forward_boolean:
+                    TxtList.append('E%s_%sV_Forwards_(µA)' % (str(num),str(Voltage2)))
+                if self.reverse_boolean:
                     TxtList.append('E%s_%sV_Reverse_(µA)' % (str(num),str(Voltage2)))
+
 
         for electrode in self.electrode_list:
             LocalFileHandle = FileHandle.split('.txt')
