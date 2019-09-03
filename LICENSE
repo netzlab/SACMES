@@ -12,7 +12,12 @@ furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software. The original manuscript where the
 code was first reported must be cited in all reproductions, modifications or scientific
-articles using it.
+articles using it:
+
+Open Source Software for the Real-Time Control, Processing and Visualization of High-Volume Electrochemical Data
+Samuel D Curtis, Kyle L Ploense, Martin Kurnik, Gabriel Ortega, Claudio Parolo, Tod E Kippin,
+Kevin W. Plaxco, and Netzahualcoyotl Arroyo-Curras
+Analytical Chemistry, 2019, DOI: 10.1021/acs.analchem.9b02553
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
