@@ -51,6 +51,12 @@ from operator import truediv
 import threading
 from threading import Thread
 from queue import Queue
+import multiprocessing
+
+#print(multiprocessing.cpu_count())
+#print(os.cpu_count())
+
+
 style.use('ggplot')
 
 #---Filter out error warnings---#
@@ -1206,7 +1212,7 @@ class SetupFrame(tk.Frame):
 
     #--- Function to visualize different frames ---#
     def _create_toolbar(self):
-        global forward_boolean,reverse_boolean,analysis_boolean,potential_boolean,probe_boolean,menubar
+        global forward_boolean,reverse_boolean,analysis_boolean,potential_boolean,menubar
 
         self.menubar = tk.Menu(self)
         menubar = self.menubar
@@ -3962,17 +3968,27 @@ class ElectrochemicalAnimation():
             ### if multiple potential values have a corresponding current     ###
             ### that equals the vertex current, find the closest to the peak  ###
             ### and extract the associated index value                        ###
-
+            print('\nVertex Potential:',vertex_potential)
+            print('\nVertex Potentials:',vertex_potentials)
+            print('\nPeak Potential:',peak_potential)
             if len(vertex_potential) == 1:
-                vertex_potential = vertex_potential[0]
-                index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
+                try:
+
+                    vertex_potential = vertex_potential[0]
+                    index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
+                except:
+                    print('Error in single vertex extraction')
             else:
                 list = []
-                for vertex in vertex_potential:
-                    if min(vertex_potentials) <= vertex <= max(vertex_potentials):
-                        list.append(vertex)
-
+                try:
+                    for vertex in vertex_potential:
+                        if min(vertex_potentials) <= vertex <= max(vertex_potentials):
+                            list.append(vertex)
+                except:
+                    print('Error in Vertex Adjustment')
                 #-- find the closest to the peak potential --#
+                if len(list) == 0:
+                    print('\nList is Empty')
                 vertex_check_list = {}
                 for vertex in list:
                     check_value = abs(peak_potential - vertex)
@@ -4182,14 +4198,14 @@ class TextFileExport():
                     list.append(peak_data_list[num]['reverse'][index])
 
             #-- Voltage 1 (Forwards, Reverse) --#
-            if self.potential_boolean:
+            if self.probe1_boolean:
                 if self.forward_boolean:
                     list.append(voltage1_data[num]['forward'][index])
                 if self.reverse_boolean:
                     list.append(voltage1_data[num]['reverse'][index])
 
             #-- Voltage 2 (Forwards, Reverse) --#
-            if self.probe_boolean:
+            if self.probe2_boolean:
                 if self.forward_boolean:
                     list.append(voltage2_data[num]['forward'][index])
                 if self.reverse_boolean:
