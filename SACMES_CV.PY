@@ -3407,6 +3407,7 @@ class ElectrochemicalAnimation():
             ### the voltage range chosen by the user  ###
             #############################################
             self.adjusted_potentials = [potential for potential in self.segment_potentials if low_voltage <= potential <= high_voltage]
+            self.adjusted_index_list = [self.potential_dict[potential] for potential in self.adjusted_potentials]
             self.adjusted_currents = [currents[index] for index in self.adjusted_index_list]
             self.adjusted_data_dict = {}
             self.adjusted_index_list = {}
