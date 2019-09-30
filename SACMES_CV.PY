@@ -570,7 +570,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         self.QuitButton.grid(row=18,column=0,columnspan=2,pady=10,padx=10)
 
         #--- Button to Initialize Data Analysis --#
-        StartButton = ttk.Button(self, width=9, text='Initialize', command = lambda: self.CheckPoint())
+        StartButton = ttk.Button(self, width=9, text='Initialize', command = lambda: self.InputFrameCheckpoint())
         StartButton.grid(row=18,column=2,columnspan=2, pady=10, padx=10)
 
         for row in range(18):
@@ -685,7 +685,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
     ### Electrodes, Frequencies, Analysis Method, and File Path. If   ###
     ### they have, initialize the program                             ###
     #####################################################################
-    def CheckPoint(self):
+    def InputFrameCheckpoint(self):
         global mypath, Option, SelectedOptions, FileHandle, AlreadyInitiated, delimeter
 
         try:
@@ -729,7 +729,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
         if not self.PathWarningExists:
             if not self.NoSelection:
-                self.StartProgram()
+                self.InitializeSetup()
 
         else:
             print('Could Not Start Program')
@@ -739,7 +739,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
     ### Function To Initialize Data Acquisition, Analysis, and Animation ###
     ########################################################################
 
-    def StartProgram(self):
+    def InitializeSetup(self):
         global FileHandle, text_file_export, starting_file, scan_rate, handle_variable, track, Interval, e_var, resize_interval, CV_min, CV_max, data_min, data_max, mypath, electrode_count, SaveVar, track, numFiles, frames, generate, figures, Plot, frame_list, PlotValues, anim, q, delimiter
 
         #---Get the User Input and make it globally accessible---#
@@ -787,15 +787,15 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         ### If all checkpoints have been met, initialize the program ###
         ################################################################
         if FoundFilePath:
-            checkpoint = CheckPoint(self.parent, self.controller)
+            checkpoint = Verification(self.parent, self.controller)
 
 #---------------------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------------------#
 
-####################################
-### Checkpoint TopLevel Instance ###
-####################################
-class CheckPoint():
+######################################
+### Verification TopLevel Instance ###
+######################################
+class Verification():
     def __init__(self, parent, controller):
 
         #-- Check to see if the user's settings are accurate
@@ -1205,7 +1205,7 @@ class SetupFrame(tk.Frame):
         #####################################
         ### Initialize Real Time Analysis ###
         #####################################
-        self.Start = tk.Button(self, text='Start', font=LARGE_FONT, width=7, command = lambda: self.Checkpoint())
+        self.Start = tk.Button(self, text='Start', font=LARGE_FONT, width=7, command = lambda: self.SetupFrameCheckpoint())
         self.Start.grid(row=10,column=1,pady=5,padx=5)
 
         self._create_toolbar()
@@ -1369,6 +1369,10 @@ class SetupFrame(tk.Frame):
         low_voltage = float(self.LowVoltage.get())
         high_voltage = float(self.HighVoltage.get())
 
+        print('\n\nMinimum Voltage:',low_voltage)
+        print('Maximum Voltage:',high_voltage,'\n\n')
+
+
         if self.ForwardsSelectionExists:
             self.ForwardsSelection(None)
 
@@ -1523,7 +1527,7 @@ class SetupFrame(tk.Frame):
         self.AlterExportPathButton['style'] = 'On.TButton'
         self.AlterExportPathButton['text'] = DataFolder
 
-    def Checkpoint(self):
+    def SetupFrameCheckpoint(self):
         global probe1_boolean, probe2_boolean
 
         passkey = True
@@ -3403,8 +3407,12 @@ class ElectrochemicalAnimation():
             ### the voltage range chosen by the user  ###
             #############################################
             self.adjusted_potentials = [potential for potential in self.segment_potentials if low_voltage <= potential <= high_voltage]
-            self.adjusted_index_list = [self.potential_dict[potential] for potential in self.adjusted_potentials]
             self.adjusted_currents = [currents[index] for index in self.adjusted_index_list]
+            self.adjusted_data_dict = {}
+            self.adjusted_index_list = {}
+            for index in range(len(self.adjusted_potentials)):
+                 self.adjusted_data_dict.setdefault(self.adjusted_currents[index],[]).append(self.adjusted_potentials[index])
+                 self.adjusted_index_list[self.adjusted_potentials[index]] = index
             adjusted_segment_data[count] = [self.adjusted_potentials,self.adjusted_currents]
 
             ################################################
@@ -3917,13 +3925,13 @@ class ElectrochemicalAnimation():
         try:
             #-- if the peak is positive (cathodic) --#
             if self.sign_dictionary[count] == 'cathodic':
-                peak_potential = self.data_dict[max(self.adjusted_currents)][0]
-                peak_index = self.potential_dict[peak_potential] - self.adjusted_index_list[0]
+                peak_potential = self.adjusted_data_dict[max(self.adjusted_currents)][0]
+                peak_index = self.adjusted_index_list[peak_potential]
 
             #-- if the peak is negative (anodic) --#
             elif self.sign_dictionary[count] == 'anodic':
-                peak_potential = self.data_dict[min(self.adjusted_currents)][0]
-                peak_index = self.potential_dict[peak_potential]  - self.adjusted_index_list[0]
+                peak_potential = self.adjusted_data_dict[min(self.adjusted_currents)][0]
+                peak_index = self.adjusted_index_list[peak_potential]
             return peak_potential, peak_index
 
         except:
@@ -3975,7 +3983,7 @@ class ElectrochemicalAnimation():
                 try:
 
                     vertex_potential = vertex_potential[0]
-                    index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
+                    index = self.adjusted_index_list[vertex_potential] # and the index value
                 except:
                     print('Error in single vertex extraction')
             else:
@@ -3995,7 +4003,7 @@ class ElectrochemicalAnimation():
                     vertex_check_list[check_value] = vertex
                 check_value = min(vertex_check_list)
                 vertex_potential = vertex_check_list[check_value]
-                index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
+                index = self.adjusted_index_list[vertex_potential] # and the index value
 
             return vertex_potential, index
 
