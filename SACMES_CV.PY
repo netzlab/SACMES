@@ -1652,7 +1652,6 @@ class SetupFrame(tk.Frame):
         frame = RealTimeManipulationFrame(analysis_container)
         ShowFrames[RealTimeManipulationFrame] = frame
         frame.grid(row=0,column=0,padx=5,ipadx=5,sticky='nswe')
-    #   frame.tkraise()
 
         for frame in PlotValues:
             frame.grid(row=0,column=0,sticky='nsew')      # sticky must be 'nsew' so it expands and contracts with resize
@@ -2084,8 +2083,15 @@ class InitializeFigureCanvas():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = min(self.adjusted_currents[:self.peak_index])
-                    vertex2 = min(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = min(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = min(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = min(self.adjusted_currents[:fit_half])
@@ -2095,8 +2101,15 @@ class InitializeFigureCanvas():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = max(self.adjusted_currents[:self.peak_index])
-                    vertex2 = max(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = max(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = max(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = max(self.adjusted_currents[:fit_half])
@@ -2120,8 +2133,12 @@ class InitializeFigureCanvas():
         else:
             list = []
             for vertex in vertex_potential:
-                if min(vertex_potentials) <= vertex <= max(vertex_potentials):
+                if len(vertex_potentials) == 1:
+                    if vertex == vertex_potentials[0]:
+                        list.append(vertex)
+                elif min(vertex_potentials) <= vertex <= max(vertex_potentials):
                     list.append(vertex)
+
 
             vertex_potential = list[0]
             index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
@@ -2309,7 +2326,9 @@ class InitializeFigureCanvas():
         ### Peak Potential Plots ###
         ############################
         if self.potential_boolean:
+            ### if forward segment has been selected ###
             if self.forward_boolean:
+                ### if forward and reverse segments have been selected ###
                 if self.reverse_boolean:
                     self.forward_plot = fig.add_subplot(ax[1,0])
                     self.reverse_plot = fig.add_subplot(ax[1,1])
@@ -2318,7 +2337,7 @@ class InitializeFigureCanvas():
 
                     self.reverse_plot.set_title('Reverse Peak Potential')
                     self.reverse_plot.set_xlabel('File Number')   # Reverse Peak Potential Plot
-                    self.reverse_plot.set_ylabel('Current/µA')    # Reverse Peak Potential Plot
+                    self.reverse_plot.set_ylabel('Potential/mV')    # Reverse Peak Potential Plot
 
                     #-- Peak Potential Forwards and Reverse --#
                     self.reverse_plot.set_xlim(-0.05,xlim_factor+0.1)
@@ -2327,7 +2346,7 @@ class InitializeFigureCanvas():
                     peak_reverse, = self.reverse_plot.plot([],[],'ro',MarkerSize=1)
                     plots['peak reverse'] = peak_reverse
 
-
+                ### if only forward segment was selected ###
                 else:
                     self.forward_plot = fig.add_subplot(ax[1,:])
 
@@ -2335,14 +2354,14 @@ class InitializeFigureCanvas():
                 figures[num]['forward plot'] = forward_plot
                 self.forward_plot.set_title('Forward Peak Potential')
                 self.forward_plot.set_xlabel('File Number')   # Forwards Peak Potential Plot
-                self.forward_plot.set_ylabel('Current/µA')    # Forwards Peak Potential Plot
+                self.forward_plot.set_ylabel('Potential/mV')    # Forwards Peak Potential Plot
                 self.forward_plot.set_xlim(-0.05,xlim_factor+0.1)
 
                 #-- Forward Line2D Artist --#
                 peak_forward, = self.forward_plot.plot([],[],'go',MarkerSize=1)
                 plots['peak forward'] = peak_forward
 
-
+            ### If only reverse segment has been selected ###
             else:
                 if self.reverse_boolean:
                     self.reverse_plot = fig.add_subplot(ax[1,:])
@@ -2351,7 +2370,7 @@ class InitializeFigureCanvas():
 
                     self.reverse_plot.set_title('Reverse Peak Potential')
                     self.reverse_plot.set_xlabel('File Number')   # Reverse Peak Potential Plot
-                    self.reverse_plot.set_ylabel('Current/µA')    # Reverse Peak Potential Plot
+                    self.reverse_plot.set_ylabel('Potential/mV')    # Reverse Peak Potential Plot
                     self.reverse_plot.set_xlim(-0.05,xlim_factor+0.1)
 
                     #-- Reverse Line2D Artist --#
@@ -2668,8 +2687,15 @@ class InitializeFigureCanvas():
                 ###############################################################
                 try:
                     #-- Split the potentials before and after the peak potential --#
-                    vertex1_potentials = self.adjusted_potentials[:self.peak_index]
-                    vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+                    if self.peak_index > 0:
+                        vertex1_potentials = self.adjusted_potentials[:self.peak_index]
+                    else:
+                        vertex1_potentials = [self.adjusted_potentials[0]]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2_potentials = [self.adjusted_potentials[-1]]
+                    else:
+                        vertex2_potentials = self.adjusted_potentials[self.peak_index:]
 
                     #-- Find the potentials that correspond to the vertex currents
                     vertex1_potential = self.data_dict[vertex1]        # extract the associated potential
@@ -3468,8 +3494,15 @@ class ElectrochemicalAnimation():
 
                 try:
                     #-- Split the potentials before and after the peak potential --#
-                    vertex1_potentials = self.adjusted_potentials[:self.peak_index]
-                    vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+                    if self.peak_index > 0:
+                        vertex1_potentials = self.adjusted_potentials[:self.peak_index]
+                    else:
+                        vertex1_potentials = [self.adjusted_potentials[0]]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2_potentials = [self.adjusted_potentials[-1]]
+                    else:
+                        vertex2_potentials = self.adjusted_potentials[self.peak_index:]
 
                     #-- Find the potentials that correspond to the vertex currents
                     vertex1_potential = self.data_dict[vertex1]        # extract the associated potential
@@ -3502,11 +3535,13 @@ class ElectrochemicalAnimation():
                     print('\n%s_raw_generator: Error in Baseline Value Adjustment\n'% self.spacer)
 
 
-                ################################
-                ### Create a linear baseline ###
-                ################################
+            ############################################################
+            ### Create a linear baseline based on the mass transport ###
+            ############################################################
 
-                #-- if it is a surface bound species --#
+                #############################
+                ### SURFACE BOUND SPECIES ###
+                #############################
                 if mass_transport == 'surface':
                     try:
                         proto_baseline = np.linspace(vertex1,vertex2,len(baseline_currents))
@@ -3572,7 +3607,11 @@ class ElectrochemicalAnimation():
                     except:
                         print('\n%s_raw_generator: Error in Surface Bound Baseline Creation\n' % self.spacer)
 
-                #-- if it is a solution phase species --#
+
+
+                ##############################
+                ### SOLUTION PHASE SPECIES ###
+                #############################
                 elif mass_transport == 'solution':
                     try:
                         try:
@@ -3706,9 +3745,9 @@ class ElectrochemicalAnimation():
                     except:
                         print('\n%s_raw_generator: Error in Solution Phase Baseline Creation\n' % self.spacer)
 
-                ################################################################
-                ### If the user selected Peak Height Extraction, analyze PHE ###
-                ################################################################
+            ################################################################
+            ### If the user selected Peak Height Extraction, analyze PHE ###
+            ################################################################
 
                 if SelectedOptions == 'Peak Height Extraction':
                     try:
@@ -3718,9 +3757,9 @@ class ElectrochemicalAnimation():
                     except:
                         print('\n%s_raw_generator: Error in PHE' % self.spacer)
 
-                ########################################################
-                ### If the user selected AUC extraction, analyze AUC ###
-                ########################################################
+            ########################################################
+            ### If the user selected AUC extraction, analyze AUC ###
+            ########################################################
 
                 elif SelectedOptions == 'Area Under the Curve':
 
@@ -3947,8 +3986,15 @@ class ElectrochemicalAnimation():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = min(self.adjusted_currents[:self.peak_index])
-                    vertex2 = min(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = min(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = min(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = min(self.adjusted_currents[:fit_half])
@@ -3958,8 +4004,15 @@ class ElectrochemicalAnimation():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = max(self.adjusted_currents[:self.peak_index])
-                    vertex2 = max(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = max(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = max(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = max(self.adjusted_currents[:fit_half])
@@ -3977,12 +4030,8 @@ class ElectrochemicalAnimation():
             ### if multiple potential values have a corresponding current     ###
             ### that equals the vertex current, find the closest to the peak  ###
             ### and extract the associated index value                        ###
-            print('\nVertex Potential:',vertex_potential)
-            print('\nVertex Potentials:',vertex_potentials)
-            print('\nPeak Potential:',peak_potential)
             if len(vertex_potential) == 1:
                 try:
-
                     vertex_potential = vertex_potential[0]
                     index = self.adjusted_index_list[vertex_potential] # and the index value
                 except:
@@ -3991,8 +4040,12 @@ class ElectrochemicalAnimation():
                 list = []
                 try:
                     for vertex in vertex_potential:
-                        if min(vertex_potentials) <= vertex <= max(vertex_potentials):
+                        if len(vertex_potentials) == 1:
+                            if vertex == vertex_potentials[0]:
+                                list.append(vertex)
+                        elif min(vertex_potentials) <= vertex <= max(vertex_potentials):
                             list.append(vertex)
+
                 except:
                     print('Error in Vertex Adjustment')
                 #-- find the closest to the peak potential --#
