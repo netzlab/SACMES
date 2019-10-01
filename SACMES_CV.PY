@@ -2134,12 +2134,14 @@ class InitializeFigureCanvas():
 
         else:
             list = []
+            print('Vertex Potential:',vertex_potential)
             for vertex in vertex_potential:
                 if len(vertex_potentials) == 1:
                     if vertex == vertex_potentials[0]:
                         list.append(vertex)
                 elif min(vertex_potentials) <= vertex <= max(vertex_potentials):
                     list.append(vertex)
+            print(list)
             vertex_potential = list[0]
             index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
 
@@ -2674,6 +2676,9 @@ class InitializeFigureCanvas():
                     peak_potential, self.peak_index = self.extract_peak(count)
                     vertex1, vertex2 = self.extract_vertex_currents(count)
 
+                    print('Vertex 1:',vertex1)
+                    print('Vertex 2:',vertex2)
+
                     #-- correlate the peak potential to its segment
                     peak_potential_list[count] = peak_potential
 
@@ -2695,6 +2700,9 @@ class InitializeFigureCanvas():
                         vertex2_potentials = [self.adjusted_potentials[-1]]
                     else:
                         vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+
+                    print('vertex 1 potentials',vertex1_potentials)
+                    print('vertex 2 potentials',vertex2_potentials)
 
                     #-- Find the potentials that correspond to the vertex currents
                     vertex1_potential = self.data_dict[vertex1]        # extract the associated potential
@@ -2782,6 +2790,7 @@ class InitializeFigureCanvas():
                             upper_limit = len(baseline_currents) - vertex_index
 
                             if vertex_index < value_range:
+                                print('Lower Vertex is under range')
                                 lower_range = baseline_currents[:vertex_index]
                                 lower_range_potentials = baseline_potentials[:vertex_index]
                             else:
@@ -2789,6 +2798,7 @@ class InitializeFigureCanvas():
                                 lower_range = baseline_currents[lower_index:vertex_index]
                                 lower_range_potentials = baseline_potentials[lower_index:vertex_index]
                             if vertex_index < upper_limit:
+                                print('Upper vertex below upper limit')
                                 upper_index = vertex_index + value_range
                                 upper_range = baseline_currents[vertex_index:upper_index]
                                 upper_range_potentials = baseline_potentials[vertex_index:upper_index]
@@ -3964,6 +3974,8 @@ class ElectrochemicalAnimation():
             elif self.sign_dictionary[count] == 'anodic':
                 peak_potential = self.adjusted_data_dict[min(self.adjusted_currents)][0]
                 peak_index = self.adjusted_index_list[peak_potential]
+            print('\nExtract Peak: Peak Potential: ',peak_potential)
+            print('\nExtract Peak: Peak Index: ',peak_index)
             return peak_potential, peak_index
 
         except:
@@ -4014,6 +4026,8 @@ class ElectrochemicalAnimation():
                     vertex1 = max(self.adjusted_currents[:fit_half])
                     vertex2 = max(self.adjusted_currents[fit_half:])
 
+            print('Vertex1:',vertex1)
+            print('Vertex2:',vertex2)
             return vertex1, vertex2
 
         except:
@@ -4026,7 +4040,9 @@ class ElectrochemicalAnimation():
             ### if multiple potential values have a corresponding current     ###
             ### that equals the vertex current, find the closest to the peak  ###
             ### and extract the associated index value                        ###
-
+            print('\nVertex Potential:',vertex_potential)
+            print('\nVertex Potentials:',vertex_potentials)
+            print('\nPeak Potential:',peak_potential)
             if len(vertex_potential) == 1:
                 try:
                     vertex_potential = vertex_potential[0]
