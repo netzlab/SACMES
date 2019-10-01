@@ -2084,8 +2084,15 @@ class InitializeFigureCanvas():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = min(self.adjusted_currents[:self.peak_index])
-                    vertex2 = min(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = min(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = min(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = min(self.adjusted_currents[:fit_half])
@@ -2095,8 +2102,15 @@ class InitializeFigureCanvas():
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = max(self.adjusted_currents[:self.peak_index])
-                    vertex2 = max(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = max(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = max(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = max(self.adjusted_currents[:fit_half])
@@ -2117,12 +2131,17 @@ class InitializeFigureCanvas():
         if len(vertex_potential) == 1:
             vertex_potential = vertex_potential[0]
             index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
+
         else:
             list = []
+            print('Vertex Potential:',vertex_potential)
             for vertex in vertex_potential:
-                if min(vertex_potentials) <= vertex <= max(vertex_potentials):
+                if len(vertex_potentials) == 1:
+                    if vertex == vertex_potentials[0]:
+                        list.append(vertex)
+                elif min(vertex_potentials) <= vertex <= max(vertex_potentials):
                     list.append(vertex)
-
+            print(list)
             vertex_potential = list[0]
             index = self.potential_dict[vertex_potential] - self.adjusted_index_list[0] # and the index value
 
@@ -2657,6 +2676,9 @@ class InitializeFigureCanvas():
                     peak_potential, self.peak_index = self.extract_peak(count)
                     vertex1, vertex2 = self.extract_vertex_currents(count)
 
+                    print('Vertex 1:',vertex1)
+                    print('Vertex 2:',vertex2)
+
                     #-- correlate the peak potential to its segment
                     peak_potential_list[count] = peak_potential
 
@@ -2666,10 +2688,21 @@ class InitializeFigureCanvas():
                 ###############################################################
                 ### Extract the Vertices to be used for the lienar baseline ###
                 ###############################################################
+
                 try:
                     #-- Split the potentials before and after the peak potential --#
-                    vertex1_potentials = self.adjusted_potentials[:self.peak_index]
-                    vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+                    if self.peak_index > 0:
+                        vertex1_potentials = self.adjusted_potentials[:self.peak_index]
+                    else:
+                        vertex1_potentials = [self.adjusted_potentials[0]]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2_potentials = [self.adjusted_potentials[-1]]
+                    else:
+                        vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+
+                    print('vertex 1 potentials',vertex1_potentials)
+                    print('vertex 2 potentials',vertex2_potentials)
 
                     #-- Find the potentials that correspond to the vertex currents
                     vertex1_potential = self.data_dict[vertex1]        # extract the associated potential
@@ -3468,8 +3501,15 @@ class ElectrochemicalAnimation():
 
                 try:
                     #-- Split the potentials before and after the peak potential --#
-                    vertex1_potentials = self.adjusted_potentials[:self.peak_index]
-                    vertex2_potentials = self.adjusted_potentials[self.peak_index:]
+                    if self.peak_index > 0:
+                        vertex1_potentials = self.adjusted_potentials[:self.peak_index]
+                    else:
+                        vertex1_potentials = [self.adjusted_potentials[0]]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2_potentials = [self.adjusted_potentials[-1]]
+                    else:
+                        vertex2_potentials = self.adjusted_potentials[self.peak_index:]
 
                     #-- Find the potentials that correspond to the vertex currents
                     vertex1_potential = self.data_dict[vertex1]        # extract the associated potential
@@ -3694,6 +3734,7 @@ class ElectrochemicalAnimation():
                                 index += 1
 
                             # recalculate the peak potential of the baseline currents #
+
                             if self.sign_dictionary[count] == 'cathodic':
                                 peak_potential = baseline_dict[max(baseline_currents)][0]  # extract the potential of the peak current
                             if self.sign_dictionary[count] == 'anodic':
@@ -3933,6 +3974,8 @@ class ElectrochemicalAnimation():
             elif self.sign_dictionary[count] == 'anodic':
                 peak_potential = self.adjusted_data_dict[min(self.adjusted_currents)][0]
                 peak_index = self.adjusted_index_list[peak_potential]
+            print('\nExtract Peak: Peak Potential: ',peak_potential)
+            print('\nExtract Peak: Peak Index: ',peak_index)
             return peak_potential, peak_index
 
         except:
@@ -3942,29 +3985,49 @@ class ElectrochemicalAnimation():
     def extract_vertex_currents(self, count):
 
         try:
-
+            print(len(self.adjusted_currents))
             if sign_dictionary[count] == 'cathodic':
+                print('_raw_generator: extract_vertex_currents: cathodic')
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = min(self.adjusted_currents[:self.peak_index])
-                    vertex2 = min(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = min(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = min(self.adjusted_currents[self.peak_index:])
                 except:
+                    print('Extraction Failed. Resorting to fit_half')
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = min(self.adjusted_currents[:fit_half])
                     vertex2 = min(self.adjusted_currents[fit_half:])
 
             if sign_dictionary[count] == 'anodic':
+                print('_raw_generator: extract_vertex_currents: anodic')
                 #-- Split the voltammogram before and after the peak  --#
                 #-- potential and extract the maxima for each besides --#
                 try:
-                    vertex1 = max(self.adjusted_currents[:self.peak_index])
-                    vertex2 = max(self.adjusted_currents[self.peak_index:])
+                    if self.peak_index > 0:
+                        vertex1 = max(self.adjusted_currents[:self.peak_index])
+                    else:
+                        vertex1 = self.adjusted_currents[0]
+
+                    if self.peak_index == len(self.adjusted_currents) - 1:
+                        vertex2 = self.adjusted_currents[-1]
+                    else:
+                        vertex2 = max(self.adjusted_currents[self.peak_index:])
                 except:
+                    print('Extraction Failed. Resorting to fit_half')
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = max(self.adjusted_currents[:fit_half])
                     vertex2 = max(self.adjusted_currents[fit_half:])
 
+            print('Vertex1:',vertex1)
+            print('Vertex2:',vertex2)
             return vertex1, vertex2
 
         except:
@@ -3982,7 +4045,6 @@ class ElectrochemicalAnimation():
             print('\nPeak Potential:',peak_potential)
             if len(vertex_potential) == 1:
                 try:
-
                     vertex_potential = vertex_potential[0]
                     index = self.adjusted_index_list[vertex_potential] # and the index value
                 except:
@@ -3991,7 +4053,10 @@ class ElectrochemicalAnimation():
                 list = []
                 try:
                     for vertex in vertex_potential:
-                        if min(vertex_potentials) <= vertex <= max(vertex_potentials):
+                        if len(vertex_potentials) == 1:
+                            if vertex == vertex_potentials[0]:
+                                list.append(vertex)
+                        elif min(vertex_potentials) <= vertex <= max(vertex_potentials):
                             list.append(vertex)
                 except:
                     print('Error in Vertex Adjustment')
