@@ -4012,7 +4012,7 @@ class ElectrochemicalAnimation():
                     if self.peak_index == len(self.adjusted_currents) - 1:
                         vertex2 = self.adjusted_currents[-1]
                     else:
-                        vertex2 = max(self.adjusted_currents[self.peak_index:])a
+                        vertex2 = max(self.adjusted_currents[self.peak_index:])
                 except:
                     fit_half = int(len(self.adjusted_currents)/2)
                     vertex1 = max(self.adjusted_currents[:fit_half])
