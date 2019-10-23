@@ -21,13 +21,15 @@ try:
     import Tkinter as tk
     from Tkinter.ttk import *
     from Tkinter import *
-    from Tknter import filedialog
+    from Tknter import filedialog, Menu
 
 except ImportError: # Python 3
     import tkinter as tk
     from tkinter.ttk import *
     from tkinter import *
-    from tkinter import filedialog
+    from tkinter import filedialog, Menu
+    from tkinter.messagebox import showinfo
+
 
 from matplotlib import style
 import scipy.integrate as integrate
@@ -35,9 +37,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import numpy as np
-import re
 import csv
 from pylab import *
 from numpy import *
@@ -48,6 +49,9 @@ from itertools import *
 from math import log10, floor
 from decimal import Decimal
 from operator import truediv
+import threading
+from threading import Thread
+from queue import Queue
 style.use('ggplot')
 
 #---Filter out error warnings---#
@@ -59,23 +63,14 @@ warnings.filterwarnings(action="ignore", module="scipy", message="^internal gels
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
 
-
-##############################################################
-######### Enter path of the folder you are analyzing #########
-##############################################################
-
 #-- file handle variable --#
-handle_variable = ''
-e_var = 'single'
+handle_variable = ''    # default handle variable is nothing
+e_var = 'single'        # default input file is 'Multichannel', or a single file containing all electrodes
+PHE_method = 'Abs'      # default PHE Extraction is difference between absolute max/min
 
 #------------------------------------------------------------#
 
-InputFrequencies = [10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000]
-
-
-#---------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------#
-
+InputFrequencies = [10,20,30,40,50,60,70,80,90,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,500,550,600,650,700,750,800,850,900,950,1000]  # frequencies initially displayed in Frequency Listbox
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
@@ -84,33 +79,16 @@ InputFrequencies = [10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,1
                                     ### Global Variables ###
                                     ########################
 
-############################
-### Animation Parameters ###
-############################
-Interval = 1000           ### animation interval for new_timer() in ElectrochemicalAnimation(FuncAnimation(TimedAnimation(Animation)))
-
 ########################################
 ### Polynomial Regression Parameters ###
 ########################################
 sg_window = 5           ### Savitzky-Golay window (in mV range), must be odd number (increase signal:noise)
 sg_degree = 1           ### Savitzky-Golay polynomial degree
-polyfit_deg = 20        ### degree of polynomial fit
+polyfit_deg = 15        ### degree of polynomial fit
 
-#####################################################
-### Polynomial Regression Manipulation Parameters ###
-#####################################################
-
-#--- Parameters for removing a specific # of points from the data set ---#
-low_xstart = 5          ### points discarded of the beginning of the polynomial fit for frequencies <= 50Hz
-low_xend = 5            ### points discarded at the end (min is 1) of frequencies <= 50Hz
-high_xstart = 5         ### points discarded of the beginning of the polynomial fit for frequencies >= 50Hz
-high_xend = 5           ### points discarded at the end (min is 1) of frequencies >= 50Hz
-
-#--- Parameters for choosing a voltage range ---#
-LowFreq_UpperMv = 0
-LowFreq_LowerMv = -0.5
-HighFreq_UpperMv = 0
-HighFreq_LowerMv = -0.5
+cutoff_frequency = 50          ### frequency that separates 'low' and 'high'
+                               ### frequencies for regression analysis and
+                               ### smoothing manipulation
 
 #############################
 ### Checkpoint Parameters ###
@@ -118,12 +96,20 @@ HighFreq_LowerMv = -0.5
 key = 0                 ### SkeletonKey
 search_lim = 15         ### Search limit (sec)
 PoisonPill = False      ### Stop Animation variable
-FoundFilePath = False
-ExistVar = False
+FoundFilePath = False   ### If the user-inputted file is found
+ExistVar = False        ### If Checkpoints are not met ExistVar = True
 AlreadyInitiated = False    ### indicates if the user has already initiated analysis
+HighAlreadyReset = False    ### If data for high frequencies has been reset
+LowAlreadyReset = False      ### If data for low frequencies has been reset
+analysis_complete = False    ### If analysis has completed, begin PostAnalysis
 
-AlreadyReset = False    ### indicates if the program has been reset already
-
+##################################
+### Data Extraction Parameters ###
+##################################
+delimiter = 1               ### default delimiter is a space; 2 = tab
+column_index = -2           ### column index for list_val.
+                              # list_val = column_index + 3
+                              # defauly column is the second (so index = 1)
 
 ###############
 ### Styling ###
@@ -133,6 +119,123 @@ LARGE_FONT = ('Verdana', 11)
 MEDIUM_FONT = ('Verdnana', 10)
 SMALL_FONT = ('Verdana', 8)
 
+
+                        ########################
+                        ### Global Functions ###
+                        ########################
+
+
+##############################
+### Retrieve the file name ###
+##############################
+def _retrieve_file(file, electrode, frequency):
+
+    try:
+        if e_var == 'single':
+            filename = '%s%dHz_.txt' % (handle_variable, frequency)
+            filename2 = '%s%dHz_%d.txt' % (handle_variable, frequency, file)
+            filename3 = '%s%dHz__%d.txt' % (handle_variable, frequency, file)
+
+
+        elif e_var == 'multiple':
+            filename = 'E%s_%s%sHz_.txt' % (electrode,handle_variable,frequency)
+            filename2 = 'E%s_%s%sHz_%d.txt' % (electrode,handle_variable,frequency,file)
+            filename3 = 'E%s_%s%sHz__%d.txt' % (electrode,handle_variable,frequency,file)
+
+        return filename, filename2, filename3
+
+    except:
+        print('\nError in _retrieve_file\n')
+
+
+
+def ReadData(myfile, electrode):
+    global delimiter
+
+    ###############################################################
+    ### Get the index value of the data depending on if the     ###
+    ### electrodes are in the same .txt file or separate files  ###
+    ###############################################################
+    if e_var == 'single':
+        list_val = (electrode*3) + column_index
+    elif e_var == 'multiple':
+        list_val = column_index + 3
+
+    #####################
+    ### Read the data ###
+    #####################
+
+    #---Preallocate Potential and Current lists---#
+    with open(myfile,'r',encoding='utf-8') as mydata:
+        variables = len(mydata.readlines())
+        potentials = ['hold']*variables
+
+        ### key: potential; value: current ##
+        data_dict = {}
+
+        currents = [0]*variables
+
+    #---Extract data and dump into lists---#
+    with open(myfile,'r',encoding='utf-8') as mydata:
+        list_num = 0
+        for line in mydata:
+            check_split = line.split(delimiter)
+            check_split = check_split[0]
+            check_split = check_split.replace(',','')
+            try:
+                check_split = float(check_split)
+                check_split = True
+            except:
+                check_split = False
+
+            if check_split:
+                #---Currents---#
+                current_value = line.split(delimiter)
+                current_value = current_value[list_val]                      # list_val is the index value of the given electrode
+                current_value = current_value.replace(',','')
+                current_value = float(current_value)
+                current_value = current_value*1000000
+                currents[list_num] = current_value
+
+                #---Potentials---#
+                potential_value = line.split(delimiter)[0]
+                potential_value = potential_value.strip(',')
+                potential_value = float(potential_value)
+                potentials[list_num] = potential_value
+                data_dict.setdefault(potential_value, []).append(current_value)
+                list_num = list_num + 1
+
+    currents = [abs(value) for value in currents]
+
+    ### if there are 0's in the list (if the preallocation added to many)
+    ### then remove them
+    cut_value = 0
+    for value in potentials:
+        if value == 'hold':
+            cut_value += 1
+
+
+    if cut_value > 0:
+        potentials = potentials[:-cut_value]
+        currents = currents[:-cut_value]
+
+    #######################
+    ### Return the data ###
+    #######################
+    return potentials, currents, data_dict
+
+#######################################
+### Retrieve the column index value ###
+#######################################
+def _get_listval(electrode):
+
+    if e_var == 'single':
+        list_val = electrode
+
+    elif e_var == 'multiple':
+        list_val = 1
+
+    return list_val
 
 
 #---------------------------------------------------------------------------------------------------#
@@ -151,19 +254,19 @@ SMALL_FONT = ('Verdana', 8)
 class MainWindow(tk.Tk):
 
     #--- Initialize the GUI ---#
-    def __init__(self, *args, **kwargs):
-        global container, Plot, frame_list, PlotValues, ShowFrames, HighLowList
+    def __init__(self,master=None,*args, **kwargs):
+        global container, Plot, frame_list, PlotValues, ShowFrames
 
 
-        tk.Tk.__init__(self, *args, **kwargs)
-        tk.Tk.wm_title(self,'Real-Time E-AB Sensing Platform')
-        #tk.Tk.resizable(self,width=False, height=False)             ## make the window size static
+        #tk.Tk.__init__(self, *args, **kwargs)
+        self.master = master
+        self.master.wm_title('SACMES')
 
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
+        self.master.rowconfigure(0, weight=1)
+        self.master.columnconfigure(0, weight=1)
 
         #--- Create a frame for the UI ---#
-        container = tk.Frame(self,relief='flat',bd=5)
+        container = tk.Frame(self.master,relief='flat',bd=5)
         container.grid(row=0,rowspan=11,padx=10, sticky = 'nsew')         ## container object has UI frame in column 0
         container.rowconfigure(0, weight=1)              ## and PlotContainer (visualization) in column 1
         container.columnconfigure(0, weight=1)
@@ -171,20 +274,81 @@ class MainWindow(tk.Tk):
 
         #--- Raise the frame for initial UI ---#
         ShowFrames = {}                                 # Key: frame handle / Value: tk.Frame object
-        frame = InputFrame(container, self)
+        frame = InputFrame(container, self.master)
         ShowFrames[InputFrame] = frame
         frame.grid(row=0, column=0, sticky = 'nsew')
         self.show_frame(InputFrame)
+
+
+        self._create_toolbar()
 
         #--- High and Low Frequency Dictionary ---#
         HighLowList = {}
 
     #--- Function to visualize different frames ---#
+    def _create_toolbar(self):
+
+        menubar = tk.Menu(self.master)
+        self.master.config(menu=menubar)
+
+        #################
+        ### Edit Menu ###
+        #################
+        editmenu = Menu(menubar, tearoff=0)
+        editmenu.add_separator()
+        editmenu.add_command(label="Adjust Current Extraction", command=lambda: self.extraction_adjustment_frame())
+        self.delimiter_value = IntVar()
+        self.delimiter_value.set(1)
+
+        menubar.add_cascade(label="Settings", menu=editmenu)
+
+
+    def extraction_adjustment_frame(self):
+        global delimiter
+
+        win = tk.Toplevel()
+        win.wm_title("Data Extraction Settings")
+
+        l = tk.Label(win, text="Differential Currents are in Column:")
+        l.grid(row=0, column=0)
+
+        self.list_val_entry = tk.Entry(win, width=7)
+        self.list_val_entry.insert(END,2)
+        self.list_val_entry.grid(row=1,column=0,pady=5)
+
+        apply_list_val = ttk.Button(win, text="Apply", command=lambda: self.get_list_val())
+        apply_list_val.grid(row=2, column=0,pady=3)
+
+
+        l = tk.Label(win, text="Delimiter between data columns:")
+        l.grid(row=3, column=0)
+
+        self.space_delimiter = tk.Radiobutton(win, text='Space',variable = self.delimiter_value, value = 1)
+        self.space_delimiter.grid(row=4,column=0,pady=5)
+
+        self.tab_delimiter = tk.Radiobutton(win, text = 'Tab',variable = self.delimiter_value, value = 2)
+        self.tab_delimiter.grid(row=5, column=0,pady=3)
+
+        delimiter = self.delimiter_value.get()
+
+        exit = ttk.Button(win, text="Exit", command= lambda: win.destroy())
+        exit.grid(row=6, column=0,pady=3)
+
+    def get_list_val(self):
+        global column_index
+
+        column_index = int(self.list_val_entry.get())
+        column_index = column_index - 4
+
     def show_frame(self, cont):
 
         frame = ShowFrames[cont]
         frame.tkraise()
 
+    def onExit(self):
+        self.master.destroy()
+        self.master.quit()
+        quit()
 
 
 #############################################################################
@@ -196,6 +360,8 @@ class InputFrame(tk.Frame):
         global figures, SaveBox, ManipulateFrequenciesFrame
 
         tk.Frame.__init__(self, parent)             # initialize the frame
+        self.parent = parent
+        self.controller = controller
 
         ##############################################
         ### Pack all of the widgets into the frame ###
@@ -223,7 +389,6 @@ class InputFrame(tk.Frame):
         year = str(now.year)
         self.filehandle.insert(END, 'DataExport_%s_%s_%s.txt' % (year, month, day))
         self.filehandle.grid(row=3,column=2,columnspan=2,pady=5)
-
         EmptyLabel = tk.Label(self, text = '',font=LARGE_FONT).grid(row=4,rowspan=2,column=0,columnspan=10)
 
 
@@ -554,11 +719,17 @@ class InputFrame(tk.Frame):
 
     #--- Electrode Selection ---#
     def ElectrodeCurSelect(self, evt):
-        global electrode_count, electrode_list, frame_list, PlotValues
+        global electrode_count, electrode_list, electrode_dict
 
         electrode_list = [self.ElectrodeCount.get(idx) for idx in self.ElectrodeCount.curselection()]
         electrode_list = [int(electrode) for electrode in electrode_list]
         electrode_count = len(electrode_list)
+
+        index = 0
+        electrode_dict = {}
+        for electrode in electrode_list:
+            electrode_dict[electrode] = index
+            index += 1
 
         if electrode_count is 0:
             self.ElectrodeListExists = False
@@ -660,53 +831,580 @@ class InputFrame(tk.Frame):
         if not self.PathWarningExists:
             if not self.NoSelection:
                 if self.FrequencyListExists:
-                    self.StartProgram()
+                    initialize = self.InitializeSetup()
 
 
 
                 else:
                     print('Could Not Start Program')
 
+    def InitializeSetup(self):
+        global FileHandle, text_file_export, starting_file, handle_variable, Interval, SaveVar, numFiles, q, delimiter, max_data,min_data,min_raw,max_raw
 
-    ########################################################################
-    ### Function To Initialize Data Acquisition, Analysis, and Animation ###
-    ########################################################################
+        #---Get the User Input and make it globally accessible---#
 
-    def StartProgram(self):
-        global FileHandle, numFiles, Interval, handle_variable, PlotContainer, e_var, min_raw, max_raw, min_data, max_data, mypath, electrode_count, SaveVar, frames, generate, figures, Plot, frame_list, PlotValues, anim
+        q = Queue()
 
+        ### Set the delimiter value for data columns ###
+        if delimiter == 1:
+            delimiter = ' '
+        elif delimiter == 2:
+            delimiter = '   '
 
-        numFiles = int(self.numfiles.get())     # file limit
+        starting_file = 1
 
-        SaveVar = self.SaveVar.get()            # tracks if text file export has been activated
-        handle_variable = self.ImportFileEntry.get()
-        Interval = self.Interval.get()
+        SaveVar = self.SaveVar.get()                        # tracks if text file export has been activated
+        handle_variable = self.ImportFileEntry.get()        # string handle used for the input file
+        numFiles = int(self.numfiles.get())
+
 
         min_raw = float(self.raw_data_min.get())            # raw data y limit adjustment variables
         max_raw = float(self.raw_data_max.get())
         min_data = float(self.data_min.get())            # raw data y limit adjustment variables
         max_data = float(self.data_max.get())
 
+        #############################################################
+        ### Interval at which the program searches for files (ms) ###
+        #############################################################
+        Interval = self.Interval.get()
+
+        #################################
+        ### Initiate .txt File Export ###
+        #################################
+
+        #--- If the user has indicated that text file export should be activated ---#
+        if SaveVar:
+            print('Initializing Text File Export')
+            text_file_export = True
+
+        else:
+            text_file_export = None
+            print('Text File Export Deactivated')
 
         ## set the resizeability of the container ##
         ## frame to handle PlotContainer resize   ##
         container.columnconfigure(1, weight=1)
 
-        if not self.NoSelection:
-            if FoundFilePath:
-                initialize = InitializeFigureCanvas()
+        ################################################################
+        ### If all checkpoints have been met, initialize the program ###
+        ################################################################
+        if FoundFilePath:
+            checkpoint = CheckPoint(self.parent, self.controller)
 
-        #--- Append the RealTimeManipulationFrame frame to the ShowFrames dictionary ---#
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+####################################
+### Checkpoint TopLevel Instance ###
+####################################
+class CheckPoint():
+    def __init__(self, parent, controller):
+
+        #-- Check to see if the user's settings are accurate
+        #-- Search for the presence of the files. If they exist,
+        #-- initialize the functions and frames for Real Time Analysis
+
+        self.win = tk.Toplevel()
+        self.win.wm_title("CheckPoint")
+
+        title = tk.Label(self.win, text = 'Searching for files...',font=HUGE_FONT).grid(row=0,column=0,columnspan=2,pady=10,padx=10,sticky='news')
+
+        self.parent = parent
+        self.win.transient(self.parent)
+        self.win.attributes('-topmost', 'true')
+        self.controller = controller
+
+        row_value = 0
+        column_value = 0
+
+        self.label_dict = {}
+        self.already_verified = {}
+
+        self.electrode_frame = tk.Frame(self.win)
+        self.electrode_frame.grid(row=1,column=0,columnspan=2)
+
+        for electrode in electrode_list:
+
+
+            electrode_label = tk.Label(self.electrode_frame, text = 'E%s' % electrode,font=HUGE_FONT)
+            electrode_label.grid(row=row_value,column=column_value,pady=5,padx=5)
+            self.label_dict[electrode] = electrode_label
+            self.already_verified[electrode] = False
+
+            if column_value == 1:
+                column_value = 0
+                row_value += 1
+            else:
+                column_value = 1
+
+        row_value += 1
+
+        self.stop = tk.Button(self.win, text = 'Stop', command = self.stop)
+        self.stop.grid(row=row_value, column=0,columnspan=2,pady=5)
+        self.StopSearch = False
+
+        self.num = 0
+        self.count = 0
+        self.analysis_count = 0
+        self.electrode_limit = electrode_count - 1
+        self.frequency_limit = len(frequency_list) - 1
+
+        root.after(50,self.verify)
+
+    def verify(self):
+
+        self.electrode = electrode_list[self.num]
+
+        frequency = frequency_list[0]
+
+        filename, filename2, filename3 = _retrieve_file(1,self.electrode,frequency)
+
+        myfile = mypath + filename               ### path of your file
+        myfile2 = mypath + filename2               ### path of your file
+        myfile3 = mypath + filename3               ### path of your file
+
+        try:
+            mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+
+        except:
+            try:
+                mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                myfile = myfile2
+            except:
+                try:
+                    mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                    myfile = myfile3
+                except:
+                    mydata_bytes = 1
+
+        if mydata_bytes > 1000:
+            if not self.already_verified[self.electrode]:
+                self.already_verified[self.electrode] = True
+                if not self.StopSearch:
+                    self.label_dict[self.electrode]['fg'] = 'green'
+                    self.analysis_count += 1
+
+            if self.analysis_count == electrode_count:
+                root.after(10,self.proceed)
+
+
+        if self.num < self.electrode_limit:
+            self.num += 1
+        else:
+            self.num = 0
+
+        if self.analysis_count < electrode_count:
+            if not self.StopSearch:
+                root.after(10,self.verify)
+
+    def proceed(self):
+        global wait_time, track, initialize, post_analysis
+
+        self.win.destroy()
+
+        ##############################
+        ### Syncronization Classes ###
+        ##############################
+        track = Track()
+
+        ######################################################
+        ### Matplotlib Canvas, Figure, and Artist Creation ###
+        ######################################################
+        initialize = InitializeFigureCanvas()
+
+        ############################
+        ### Post Analysis Module ###
+        ############################
+        #post_analysis = PostAnalysis(self.parent, self.controller)
+        #ShowFrames[PostAnalysis] = post_analysis
+        #post_analysis.grid(row=0, column=0, sticky = 'nsew')
+
+        ################################################
+        ### Initialize the RealTimeManipulationFrame ###
+        ################################################
         frame = RealTimeManipulationFrame(container, self)
         ShowFrames[RealTimeManipulationFrame] = frame
         frame.grid(row=0, column=0, sticky='nsew')
 
-        if not self.NoSelection:
-            #---When initliazed, raise the Start Page and the plot for electrode one---#
-            self.show_frame(RealTimeManipulationFrame)              # raises the frame for real-time data manipulation
-            self.show_plot(PlotValues[0])           # raises the figure for electrode 1
+
+        #---When initliazed, raise the Start Page and the plot for electrode one---#
+        self.show_frame(RealTimeManipulationFrame)              # raises the frame for real-time data manipulation
+        self.show_plot(PlotValues[0])           # raises the figure for electrode 1
 
 
+    def stop(self):
+        self.StopSearch = True
+        self.win.destroy()
+
+    #--- Function to switch between visualization frames ---#
+    def show_plot(self, frame):
+        frame.tkraise()
+
+    def show_frame(self, cont):
+
+        frame = ShowFrames[cont]
+        frame.tkraise()
+
+
+
+                                        #############################################################
+                                        #############################################################
+                                        ### Creation of Matplotlib Canvas, Figures, Axes, Artists ###
+                                        ### and all other decorators (e.g. axis labels, titles)   ###
+                                        #############################################################
+                                        #############################################################
+
+
+class InitializeFigureCanvas():
+    def __init__(self):
+        global text_file_export, SaveVar, file_list, electrode_count, anim, Frame, FrameReference, FileHandle, PlotContainer,frequency_list, data_list, plot_list, EmptyPlots, figures, frame_list, Plot, PlotFrames, PlotValues
+
+        ##############################################
+        ### Generate global lists for data storage ###
+        ##############################################
+
+        self.length = len(frequency_list)
+        electrode_count = int(electrode_count)
+
+        #--- Animation list ---#
+        anim = []
+
+        #--- file list ---#
+        file_list = [0]*numFiles
+
+        #--- Figure lists ---#
+        figures = []
+
+        ############################################
+        ### Create global lists for data storage ###
+        ############################################
+        data_list = [0]*electrode_count                             # Peak Height/AUC data (after smoothing and polynomial regression)
+
+        for num in range(electrode_count):
+            data_list[num] = [0]*self.length                        # a data list for each eletrode
+            for count in range(self.length):                        # a data list for each frequency for that electrode
+                data_list[num][count] = [0]*numFiles
+
+
+        #--- Lists of Frames and Artists ---#
+        plot_list = []
+        frame_list = []
+
+        ######################################################
+        ### Create a figure and artists for each electrode ###
+        ######################################################
+        for num in range(electrode_count):
+            electrode = electrode_list[num]
+            figure = self.MakeFigure(electrode)
+            figures.append(figure)
+
+
+        #####################################################
+        ### Create a frame for each electrode and embed   ###
+        ### within it the figure containing its artists   ###
+        #####################################################
+
+        PlotFrames = {}                # Dictionary of frames for each electrode
+        PlotValues = []                # create a list of frames
+
+        #--- Create a container that can be created and destroyed when Start() or Reset() is called, respectively ---#
+        PlotContainer = tk.Frame(container, relief = 'groove', bd = 3)
+        PlotContainer.grid(row=0,column=1, sticky = 'nsew')
+        PlotContainer.rowconfigure(0, weight=1)
+        PlotContainer.columnconfigure(0, weight=1)
+
+        frame_count = 0
+        for electrode_frame in frame_list:                # Iterate through the frame of each electrode
+
+            #--- create an instance of the frame and append it to the global frame dictionary ---#
+            FrameReference = VisualizationFrame(electrode_frame, frame_count, PlotContainer, self)            # PlotContainer is the 'parent' frame
+            FrameReference.grid(row=0,column=0,sticky='nsew')      # sticky must be 'nsew' so it expands and contracts with resize
+            PlotFrames[electrode_frame] = FrameReference
+
+            frame_count += 1
+
+        #--- Create a list containing the Frame objects for each electrode ---#
+        for reference, frame in PlotFrames.items():
+            PlotValues.append(frame)
+
+
+        #################################
+        ### Initiate .txt File Export ###
+        #################################
+
+        #--- If the user has indicated that text file export should be activated ---#
+        if SaveVar:
+            print('Initializing Text File Export')
+            text_file_export = TextFileExport()
+
+        else:
+            text_file_export = None
+            print('Text File Export Deactivated')
+
+
+
+    ############################################
+    ### Create the figure and artist objects ###
+    ############################################
+    def MakeFigure(self, electrode):
+        global EmptyPlots, plot_list, frame_list
+
+        try:
+            ##########################################
+            ### Setup the Figure for voltammograms ###
+            ##########################################
+            fig, ax = plt.subplots(nrows=2,ncols=1,squeeze=False,figsize=(9,4.5))    ## figsize=(width, height)
+            plt.subplots_adjust(bottom=0.2,hspace=0.6,wspace=0.3)         ### adjust the spacing between subplots
+            #---Set the electrode index value---#
+            if e_var == 'single':
+                list_val = (electrode*3)
+            elif e_var == 'multiple':
+                list_val = 3
+            #######################
+            ### Set axis labels ###
+            #######################
+            ax[0,0].set_ylabel('Current (µA)',fontweight='bold')
+            ax[0,0].set_xlabel('Voltage (V)',fontweight='bold')
+
+            ax[1,0].set_ylabel('Charge (uC)',fontweight='bold')
+            ax[1,0].set_xlabel('Frequency (Hz)',fontweight='bold')
+            ##########################################
+            ### Set suplot axes for each frequency ###
+            ##########################################
+            electrode_plot = []
+
+            max_frequency = frequency_list[-1]
+            ax[1,0].set_xscale('log')
+            #################################################################################
+            #################################################################################
+            ###       Analyze the first file and create the Y limits of the subplots      ###
+            ###               depending on the data range of the first file               ###
+            #################################################################################
+
+            self.InitializeSubplots(ax, electrode)
+
+            #################################################################################
+            #################################################################################
+
+            #---Initiate the subplots---#
+            # this assigns a Line2D artist object to the artist object (Axes)
+            smooth, = ax[0,0].plot([],[],'ko',Markersize=2)
+            regress, = ax[0,0].plot([],[],'r-')
+            charge, = ax[1,0].plot([],[],'ko',MarkerSize=1)
+
+            #--- shading for AUC ---#
+            verts = [(0,0),*zip([],[]),(0,0)]
+            poly = Polygon(verts, alpha = 0.5)
+            ax[0,0].add_patch(poly)
+
+            #####################################################
+            ### Create a list of the primitive artists        ###
+            ### (Line2D objects) that will be returned        ###
+            ### to ElectrochemicalAnimation to be visualized  ###
+            #####################################################
+
+            # this is the list that will be returned as _drawn_artists to the Funcanimation class
+            plots = [smooth,regress,charge,poly]
+
+            #--- And append that list to keep a global reference ---#
+            electrode_plot.append(plots)        # 'plots' is a list of artists that are passed to animate
+            electrode_frame = 'Electrode %s' % str(electrode)
+            if electrode_frame not in frame_list:
+                frame_list.append(electrode_frame)
+
+            #--- Create empty plots to return to animate for initializing---#
+            EmptyPlots = [smooth,regress,charge]
+
+            plot_list.append(plots)        # 'plot_list' is a list of lists containing 'plots' for each electrode
+
+            #-- Return both the figure and the axes to be stored as global variables --#
+            return fig, ax
+
+
+        except:
+            print('Error in MakeFigure')
+
+
+    #####################################################################################
+    ### Initalize Y Limits of each figure depending on the y values of the first file ###
+    #####################################################################################
+    def InitializeSubplots(self,ax,electrode):
+
+        self.list_val = _get_listval(electrode)
+
+        try:
+            print('Initialize: Electrode %s' % str(electrode))
+            frequency = frequency_list[0]
+            filename, filename2, filename3 = _retrieve_file(1,electrode,frequency)
+
+            myfile = mypath + filename               ### path of your file
+            myfile2 = mypath + filename2               ### path of your file
+            myfile3 = mypath + filename3               ### path of your file
+
+            try:
+                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+
+            except:
+                try:
+                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    myfile = myfile2
+                except:
+                    try:
+                        mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                        myfile = myfile3
+                    except:
+                        mydata_bytes = 1
+
+
+            if mydata_bytes > 1000:
+                print('Found File %s' % myfile)
+                self.RunInitialization(myfile,ax,electrode)
+
+            else:
+                return False
+
+
+        except:
+            print('could not find file for electrode %d' % electrode)
+            #--- If search time has not met the search limit keep searching ---#
+            root.after(1000, self.InitializeSubplots, ax, electrode)
+
+
+    def RunInitialization(self, myfile, ax, electrode):
+        global high_xstart, high_xend, low_xstart, low_xend
+
+        try:
+            avalue = 0
+            #########################
+            ### Retrieve the data ###
+            #########################
+            potentials, currents, data_dict = ReadData(myfile, electrode)
+
+            ##########################################
+            ### Set the x axes of the voltammogram ###
+            ##########################################
+            MIN_POTENTIAL = min(potentials)
+            MAX_POTENTIAL = max(potentials)
+
+            #-- Reverse voltammogram to match the 'Texas' convention --#
+            ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
+
+            #######################################
+            ### Get the high and low potentials ###
+            #######################################
+
+            #-- set the local variables to the global ---#
+            xstart = max(potentials)
+            xend = min(potentials)
+
+            low_xstart = xstart
+            high_xstart = xstart
+            low_xend = xend
+            high_xend = xend
+
+            cut_value = 0
+            for value in potentials:
+                if value == 0:
+                    cut_value += 1
+
+
+            if cut_value > 0:
+                potentials = potentials[:-cut_value]
+                currents = currents[:-cut_value]
+
+            adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
+
+            #########################################
+            ### Savitzky-Golay smoothing          ###
+            #########################################
+            smooth_currents = savgol_filter(currents, 15, sg_degree)
+            data_dict = dict(zip(potentials,smooth_currents))
+
+            #######################################
+            ### adjust the smooth currents to   ###
+            ### match the adjusted potentials   ###
+            #######################################
+            adjusted_currents = []
+            for potential in adjusted_potentials:
+                adjusted_currents.append(data_dict[potential])
+
+            ######################
+            ### Polynomial fit ###
+            ######################
+            polynomial_coeffs = np.polyfit(adjusted_potentials,adjusted_currents,polyfit_deg)
+            eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
+            regression_dict = dict(zip(eval_regress, adjusted_potentials))      # dictionary with current: potential
+
+            fit_half = round(len(eval_regress)/2)
+            min1 = min(eval_regress[:-fit_half])
+            min2 = min(eval_regress[fit_half:])
+            max1 = max(eval_regress[:-fit_half])
+            max2 = max(eval_regress[fit_half:])
+
+            linear_fit = np.polyfit([regression_dict[min1],regression_dict[min2]],[min1,min2],1)
+            linear_regression = polyval(linear_fit,[regression_dict[min1],regression_dict[min2]]).tolist()
+
+            Peak_Height = max(max1,max2)-min(min1,min2)
+
+
+            if SelectedOptions == 'Area Under the Curve':
+                AUC_index = 1
+                AUC = 0
+
+                AUC_potentials = [abs(potential) for potential in adjusted_potentials]
+                AUC_min = min(adjusted_currents)
+                AUC_currents = [Y - AUC_min for Y in adjusted_currents]
+
+                while AUC_index <= len(AUC_currents) - 1:
+                    AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
+                    AUC_width = AUC_potentials[AUC_index] - AUC_potentials[AUC_index - 1]
+                    AUC += (AUC_height * AUC_width)
+                    AUC_index += 1
+
+            #--- calculate the baseline current ---#
+            minimum_current = min(min1,min2)
+            maximum_current = max(max1,max2)
+            peak_current = maximum_current - minimum_current
+
+            ## Reverse voltammogram to match the 'Texas' convention ##
+            ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
+
+            ## set the limits of the lovric plot ##
+            ax[1,0].set_ylim(0,max_data*.05)
+            ax[1,0].set_xlim(int(frequency_list[0]),int(frequency_list[-1]))
+
+            if SelectedOptions == 'Peak Height Extraction':
+                ax[0,0].set_ylim(min_raw*minimum_current,10*max_raw*max(max1,max2))         # voltammogram
+
+            elif SelectedOptions == 'Area Under the Curve':
+                ax[0,0].set_ylim(0,max_raw*max(max1,max2))
+
+
+            return True
+
+        except:
+            print('\n\nError in RunInitialization\n\n')
+
+
+
+
+                #############################################################
+                #############################################################
+                ###              END OF INITIATION FUNCTIONS              ###
+                #############################################################
+                #############################################################
+
+
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
 
 #---------------------------------------------------------------------------------------------------------------------------#
@@ -924,7 +1622,6 @@ class RealTimeManipulationFrame(tk.Frame):
         print('\n\n\nAdjustParamaters: SG_Window (mV) %d\n\n\n' % sg_window)
 
 
-
     ########################################################
     ### Function to Reset and raise the user input frame ###
     ########################################################
@@ -960,12 +1657,20 @@ class RealTimeManipulationFrame(tk.Frame):
     ### Function to start returning visualized data ###
     ###################################################
     def SkeletonKey(self):
-        global key, PoisonPill, data_analysis, AlreadyInitiated
+        global key, PoisonPill, data_analysis, extrapolate, AlreadyInitiated
 
         if not AlreadyInitiated:
-            data_analysis = RawVoltammogramVisualization()
 
-            #-- inactivates the start button once it has been pressed
+            ######################################################################
+            ### Initialize Animation (Visualization) for each electrode figure ###
+            ######################################################################
+            fig_count = 0                   # index value for the frame
+            for figure in figures:
+                fig, self.ax = figure
+                electrode = electrode_list[fig_count]
+                anim.append(ElectrochemicalAnimation(fig, self.ax, electrode, resize_interval = None, fargs=None))
+                fig_count += 1
+
             AlreadyInitiated = True
 
             #--- reset poison pill variables --#
@@ -998,6 +1703,7 @@ class RealTimeManipulationFrame(tk.Frame):
 
 
 
+
 #---------------------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------------------#
 
@@ -1015,22 +1721,26 @@ class RealTimeManipulationFrame(tk.Frame):
 
 class VisualizationFrame(tk.Frame):
     def __init__(self, electrode, count, parent, controller):
+        global FrameFileLabel
 
         tk.Frame.__init__(self, parent)
 
         #--- for resize ---#
-        self.columnconfigure(0, weight = 1)
-        self.rowconfigure(1, weight=10)
+        self.columnconfigure(0, weight = 2)
+        self.columnconfigure(1, weight = 1)
+        self.rowconfigure(2, weight=2)
 
         ElectrodeLabel = tk.Label(self, text='%s' % electrode ,font=HUGE_FONT)
-        ElectrodeLabel.grid(row=0,pady=5,sticky='n')
+        ElectrodeLabel.grid(row=0,column=0,pady=5,sticky='n')
+
+        FrameFileLabel = tk.Label(self, text = '', font=MEDIUM_FONT)
+        FrameFileLabel.grid(row=0,column=1,pady=3,sticky='ne')
 
         #--- Voltammogram, Raw Peak Height, and Normalized Figure and Artists ---#
         fig, ax = figures[count]                                                # Call the figure and artists for the electrode
         canvas = FigureCanvasTkAgg(fig, self)                                         # and place the artists within the frame
         canvas.draw()                                                           # initial draw call to create the artists that will be blitted
-        canvas.get_tk_widget().grid(row=1,pady=6,ipady=5,sticky='new')          # does not affect size of figure within plot container
-
+        canvas.get_tk_widget().grid(row=1,columnspan=2,pady=6,ipady=5,sticky='news')          # does not affect size of figure within plot container
 
                                         #############################################################
                                         #############################################################
@@ -1054,452 +1764,99 @@ class VisualizationFrame(tk.Frame):
 #---------------------------------------------------------------------------------------------------------------------------#
 
 
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
 
-                                        #############################################################
-                                        #############################################################
-                                        ### Creation of Matplotlib Canvas, Figures, Axes, Artists ###
-                                        ### and all other decorators (e.g. axis labels, titles)   ###
-                                        #############################################################
-                                        #############################################################
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
 
-class InitializeFigureCanvas():
-    def __init__(self):
-        global text_file_export, file_list, electrode_count, anim, Frame, FrameReference, FileHandle, PlotContainer,frequency_list, data_list, plot_list, EmptyPlots, figures, frame_list, Plot, PlotFrames, PlotValues
 
-        ##############################################
-        ### Generate global lists for data storage ###
-        ##############################################
-
-        self.length = len(frequency_list)
-        electrode_count = int(electrode_count)
-
-        #--- Animation list ---#
-        anim = []
-
-        #--- file list ---#
-        file_list = [0]*numFiles
-
-        #--- Figure lists ---#
-        figures = []
-
-        ############################################
-        ### Create global lists for data storage ###
-        ############################################
-        data_list = [0]*electrode_count                             # Peak Height/AUC data (after smoothing and polynomial regression)
-
-        for num in range(electrode_count):
-            data_list[num] = [0]*self.length                        # a data list for each eletrode
-            for count in range(self.length):                        # a data list for each frequency for that electrode
-                data_list[num][count] = [0]*numFiles
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
 
-        #--- Lists of Frames and Artists ---#
-        plot_list = []
-        frame_list = []
-
-        ######################################################
-        ### Create a figure and artists for each electrode ###
-        ######################################################
-        for num in range(electrode_count):
-            electrode = electrode_list[num]
-            figure = self.MakeFigure(electrode)
-            figures.append(figure)
+    ##########################################################################
+    ##########################################################################
+    ###   ANIMATION FUNCTION TO HANDLE ALL DATA ANALYSIS AND VISUALIZATION ###
+    ##########################################################################
+    ##########################################################################
 
 
-        #####################################################
-        ### Create a frame for each electrode and embed   ###
-        ### within it the figure containing its artists   ###
-        #####################################################
+class ElectrochemicalAnimation():
+    def __init__(self, fig, ax, electrode, generator = None, func = None, resize_interval = None, fargs = None):
 
-        PlotFrames = {}                # Dictionary of frames for each electrode
-        PlotValues = []                # create a list of frames
+        self.electrode = electrode                               # Electrode for this class instance
+        self.num = electrode_dict[self.electrode]                # Electrode index value
+        self.spacer = ''.join(['       ']*self.electrode)        # Spacer value for print statements
+        self.list_val = (self.electrode*3) + column_index        # Electrode column index value
+        self.file = starting_file                                # Starting File
+        self.index = 0                                           # File Index Value
+        self.ax = ax                                             # Figure Axes object
+        self.count = 0                                           # Frequency index value
+        self.frequency_limit = len(frequency_list) - 1           # ' -1 ' so it matches the index value
 
-        #--- Create a container that can be created and destroyed when Start() or Reset() is called, respectively ---#
-        PlotContainer = tk.Frame(container, relief = 'groove', bd = 3)
-        PlotContainer.grid(row=0,column=1, sticky = 'nsew')
-        PlotContainer.rowconfigure(0, weight=1)
-        PlotContainer.columnconfigure(0, weight=1)
+        self.frequency_axis = []
+        self.charge_axis = []
 
-        frame_count = 0
-        for electrode_frame in frame_list:                # Iterate through the frame of each electrode
-
-            #--- create an instance of the frame and append it to the global frame dictionary ---#
-            FrameReference = VisualizationFrame(electrode_frame, frame_count, PlotContainer, self)            # PlotContainer is the 'parent' frame
-            FrameReference.grid(row=0,column=0,sticky='nsew')      # sticky must be 'nsew' so it expands and contracts with resize
-            PlotFrames[electrode_frame] = FrameReference
-
-            frame_count += 1
-
-        #--- Create a list containing the Frame objects for each electrode ---#
-        for reference, frame in PlotFrames.items():
-            PlotValues.append(frame)
+        ### Lists for sample rate (time passed)  ###
+        ### and file count for each electrode    ###
+        self.sample_list = []
+        self.file_list = []
 
 
-        #################################
-        ### Initiate .txt File Export ###
-        #################################
 
-        #--- If the user has indicated that text file export should be activated ---#
-        if SaveVar:
-            print('Initializing Text File Export')
-            text_file_export = TextFileExport()
-
+        ##############################
+        ## Set the generator object ##
+        ##############################
+        if generator is not None:
+            self.generator = generator
         else:
-            text_file_export = None
-            print('Text File Export Deactivated')
+            self.generator = self._raw_generator
 
+        ################################
+        ## Set the animation function ##
+        ################################
+        if func is not None:
+            self._func = func
+        else:
+            self._func = self._animate
 
-    ############################################
-    ### Create the figure and artist objects ###
-    ############################################
-    def MakeFigure(self, electrode):
-        global EmptyPlots, plot_list, frame_list
+        if resize_interval is not None:
+            self.resize_interval = resize_interval
+        else:
+            self.resize_interval = None
 
-        try:
-            ##########################################
-            ### Setup the Figure for voltammograms ###
-            ##########################################
-            fig, ax = plt.subplots(nrows=2,ncols=1,squeeze=False,figsize=(9,4.5))    ## figsize=(width, height)
-            plt.subplots_adjust(bottom=0.2,hspace=0.6,wspace=0.3)         ### adjust the spacing between subplots
+        self.resize_limit = self.resize_interval        # set the first limit
 
-            #---Set the electrode index value---#
-            if e_var == 'single':
-                list_val = (electrode*3)-2
-            elif e_var == 'multiple':
-                list_val = 3
+        if fargs:
+            self._args = fargs
+        else:
+            self._args = ()
 
-            #######################
-            ### Set axis labels ###
-            #######################
-            ax[0,0].set_ylabel('Current (µA)',fontweight='bold')
-            ax[0,0].set_xlabel('Voltage (V)',fontweight='bold')
+        self._fig = fig
 
-            ax[1,0].set_ylabel('Charge (uC)',fontweight='bold')
-            ax[1,0].set_xlabel('Frequency (Hz)',fontweight='bold')
+        # Disables blitting for backends that don't support it.  This
+        # allows users to request it if available, but still have a
+        # fallback that works if it is not.
+        self._blit = fig.canvas.supports_blit
 
-            ##########################################
-            ### Set suplot axes for each frequency ###
-            ##########################################
-            electrode_plot = []
 
-            max_frequency = frequency_list[-1]
-            ax[1,0].set_xscale('log')
+        # Instead of starting the event source now, we connect to the figure's
+        # draw_event, so that we only start once the figure has been drawn.
+        self._first_draw_id = fig.canvas.mpl_connect('draw_event', self._start)
 
-            #################################################################################
-            #################################################################################
-            ###       Analyze the first file and create the Y limits of the subplots      ###
-            ###               depending on the data range of the first file               ###
-            #################################################################################
-            self.InitializeSubplots(ax, electrode)
+        # Connect to the figure's close_event so that we don't continue to
+        # fire events and try to draw to a deleted figure.
+        self._close_id = self._fig.canvas.mpl_connect('close_event', self._stop)
 
-            #################################################################################
-            #################################################################################
-
-
-            #---Initiate the subplots---#
-            # this assigns a Line2D artist object to the artist object (Axes)
-            smooth, = ax[0,0].plot([],[],'ko',Markersize=2)
-            regress, = ax[0,0].plot([],[],'r-')
-            charge, = ax[1,0].plot([],[],'ko',MarkerSize=1)
-
-            #--- shading for AUC ---#
-            verts = [(0,0),*zip([],[]),(0,0)]
-            poly = Polygon(verts, alpha = 0.5)
-            ax[0,0].add_patch(poly)
-
-
-            #####################################################
-            ### Create a list of the primitive artists        ###
-            ### (Line2D objects) that will be returned        ###
-            ### to ElectrochemicalAnimation to be visualized  ###
-            #####################################################
-
-            # this is the list that will be returned as _drawn_artists to the Funcanimation class
-            plots = [smooth,regress,charge,poly]
-
-            #--- And append that list to keep a global reference ---#
-            electrode_plot.append(plots)        # 'plots' is a list of artists that are passed to animate
-            electrode_frame = 'Electrode %s' % str(electrode)
-            if electrode_frame not in frame_list:
-                frame_list.append(electrode_frame)
-
-            #--- Create empty plots to return to animate for initializing---#
-            EmptyPlots = [smooth,regress,charge]
-
-            plot_list.append(plots)        # 'plot_list' is a list of lists containing 'plots' for each electrode
-
-            #-- Return both the figure and the axes to be stored as global variables --#
-            return fig, ax
-
-
-        except:
-            print('Error in MakeFigure')
-
-
-    #####################################################################################
-    ### Initalize Y Limits of each figure depending on the y values of the first file ###
-    #####################################################################################
-    def InitializeSubplots(self,ax,electrode):
-        global PoisonPill, high_xstart, high_xend, low_xstart, low_xend
-
-        self.search_val = 0
-        self.list_val = (electrode*3)-2
-        try:
-            freq = frequency_list[0]
-
-            #-- retrieve the filename --#
-            try:
-                filename = RetrieveFile(electrode, freq)
-            except:
-                print('Could not retrieve file name')
-
-            myfile = mypath + filename               ### path of your file
-
-            while True:
-                try:
-                    mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-                except:
-                    mydata_bytes = 1
-                    print('Initialize Subplots Electrode %s could not find file one' % str(electrode))
-                #---if the file meets the size requirement, analyze data---#
-
-                if mydata_bytes > 1000:
-                    print('Initialize Subplots: met size requirement')
-
-                    #########################
-                    ### Retrieve the data ###
-                    #########################
-                    potentials, currents = self.ReadData(myfile, electrode)
-
-                    #######################################
-                    ### Get the high and low potentials ###
-                    #######################################
-                    if not AlreadyReset:
-                        low_xstart = max(potentials)
-                        low_xend = min(potentials)
-                        high_xstart = max(potentials)
-                        high_xend = min(potentials)
-
-                    xstart = low_xstart
-                    xend = low_xend
-
-                    cut_value = 0
-                    for value in potentials:
-                        if value == 0:
-                            cut_value += 1
-
-                    if cut_value > 0:
-                        potentials = potentials[:-cut_value]
-                        currents = currents[:-cut_value]
-
-                    adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
-
-                    #########################################
-                    ### Savitzky-Golay smoothing          ###
-                    #########################################
-
-                    smooth_currents = savgol_filter(currents, 15, sg_degree)
-                    data_dict = dict(zip(potentials, smooth_currents))
-
-                    ###################################################
-                    ### Adjust the currents and potentials to match ###
-                    ###################################################
-                    adjusted_currents = []
-                    for potential in adjusted_potentials:
-                        adjusted_currents.append(data_dict[potential])
-
-
-                    ######################
-                    ### Polynomial fit ###
-                    ######################
-                    polynomial_coeffs = np.polyfit(adjusted_potentials,adjusted_currents,polyfit_deg)
-                    eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
-
-                    fit_half = round(len(eval_regress)/2)
-                    min1 = min(eval_regress[:-fit_half])
-                    min2 = min(eval_regress[fit_half:])
-                    max1 = max(eval_regress[:-fit_half])
-                    max2 = max(eval_regress[fit_half:])
-                    Peak_Height = max(max1,max2)-min(min1,min2)
-
-
-                    if SelectedOptions == 'Area Under the Curve':
-                        AUC_index = 1
-                        AUC = 0
-
-                        #--- Determine currents using either a corresponding voltage
-                        #    range or the number of points discarded
-                        AUC_min = min(AUC_currents)
-                        AUC_currents = [Y - AUC_min for Y in adjusted_currents]
-
-                        while AUC_index <= len(AUC_currents) - 1:
-                            AUC_height = (AUC_currents[AUC_index] + AUC_currents[AUC_index - 1])/2
-                            AUC_width = adjusted_potentials[AUC_index] - adjusted_potentials[AUC_index - 1]
-                            AUC += (AUC_height * AUC_width)
-                            AUC_index += 1
-
-                    MIN_POTENTIAL = min(potentials)
-                    MAX_POTENTIAL = max(potentials)
-
-                    #--- calculate the baseline current ---#
-                    minimum_current = min(min1,min2)
-
-                    ## Reverse voltammogram to match the 'Texas' convention ##
-                    ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
-
-                    ## set the limits of the lovric plot ##
-                    ax[1,0].set_ylim(0,max_data*.05)
-                    ax[1,0].set_xlim(int(frequency_list[0]),int(frequency_list[-1]))
-
-                    if SelectedOptions == 'Peak Height Extraction':
-                        ax[0,0].set_ylim(min_raw*minimum_current,10*max_raw*max(max1,max2))         # voltammogram
-
-                    elif SelectedOptions == 'Area Under the Curve':
-                        ax[0,0].set_ylim(0,max_raw*max(max1,max2))
-
-                    return
-
-                else:
-                    #--- If search time has not met the search limit keep searching ---#
-                    if self.search_val < 100:
-                        time.sleep(1)
-                        self.search_val += 1
-                        search_time = 100 - self.search_val
-                        print('Initialize Subplots could not find File 1 for Electrode %s' % str(electrode))
-                        print('\n time left: %s ' % str(search_time))
-
-                    else:
-                        print('cannot find file 1 at frequency: %s' % str(freq))
-                        PoisonPill = True
-                        break
-
-
-        except:
-            #--- If search time has not met the search limit keep searching ---#
-            print('\n\nError in Initialize Subplots.\n\n')
-
-    def ReadData(self, myfile, electrode):
-
-        ###############################################################
-        ### Get the index value of the data depending on if the     ###
-        ### electrodes are in the same .txt file or separate files  ###
-        ###############################################################
-        if e_var == 'single':
-            list_val = (electrode*3)-2
-        elif e_var == 'multiple':
-            list_val = 3
-
-        #####################
-        ### Read the data ###
-        #####################
-
-        #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            variables = len(mydata.readlines())
-            potentials = [0]*variables
-            potential_dict = {}
-            currents = [0]*variables
-
-        #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            list_num = 0
-            for line in mydata:
-                line = line.replace('\n','')
-                line = line.split(' ')
-                check_split = line[0]
-                check_split = check_split.replace(',','')
-
-                try:
-                    check_split = float(check_split)
-                    check_split = True
-                except:
-                    check_split = False
-
-                if check_split:
-                    #---Currents---#
-                    current_value = line[list_val]                      # list_val is the index value of the given electrode
-                    current_value = current_value.replace(',','')
-                    current_value = float(current_value)
-                    current_value = current_value*1000000
-                    currents[list_num] = current_value
-
-                    #---Potentials---#
-                    potential_value = line[0]
-                    potential_value = potential_value.strip(',')
-                    potential_value = float(potential_value)
-                    potentials[list_num] = potential_value
-                    list_num = list_num + 1
-
-        ### if there are 0's in the list (if the preallocation added to many)
-        ### then remove them
-        cut_value = 0
-        for value in potentials:
-            if value == 0:
-                cut_value += 1
-
-        if cut_value > 0:
-            potentials = potentials[:-cut_value]
-
-
-        #######################
-        ### Return the data ###
-        #######################
-        return potentials, currents
-
-
-                                #############################################################
-                                #############################################################
-                                ###              END OF INITIATION FUNCTIONS              ###
-                                #############################################################
-                                #############################################################
-
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-                                ###############################################################
-                                ###############################################################
-                                ###   ANIMATION FUNCTION TO HANDLE ALL DATA VISUALIZATION   ###
-                                ###############################################################
-                                ###############################################################
-
-
-class ElectrochemicalAnimation(animation.FuncAnimation):
-    def __init__(self, fig, ax, func, generator, fig_count, electrode,  handle = None, init_func = None, interval = None):
-
-        self.handle = handle
-        self.num = fig_count
-        self.electrode = electrode
-        self.file = 1
-        self.ax = ax
-        self.count = 0  # frequency index value
-        self.frequency_limit = len(frequency_list) - 1      # ' -1 ' so it matches the index value
-
-
-        ### Set the interval at which callback is called ###
-        if interval is None:
-            self.interval = Interval
-        elif interval is not None:
-            self.inteval = interval
-
-        FuncAnimation.__init__(self, fig, func, generator, init_func = init_func, interval = Interval, blit = True)
+        self._setup_blit()
 
 
     def _start(self, *args):
+
 
         # Starts interactive animation. Adds the draw frame command to the GUI
         # andler, calls show to start the event loop.
@@ -1511,351 +1868,330 @@ class ElectrochemicalAnimation(animation.FuncAnimation):
         # Now do any initial draw
         self._init_draw()
 
-        # Add our callback for stepping the animation and
-        # actually start the event_source.
-        self.event_source.add_callback(self._quick_step)
+        ### Create a thread to analyze obtain the file from a Queue
+        ### and analyze the data.
 
-        self.event_source.start()
+        class _threaded_animation(threading.Thread):
+
+            def __init__(self, Queue):
+                #global PoisonPill
+
+                threading.Thread.__init__(self)     # initiate the thread
+
+                self.q = Queue
+
+                #-- set the poison pill event for Reset --#
+                self.PoisonPill = Event()
+                PoisonPill = self.PoisonPill             # global reference
+
+                self.file = 1
+
+                root.after(10,self.start)                       # initiate the run() method
+
+            def run(self):
+
+                while True:
+                    try:
+                        task = self.q.get(block=False)
+
+                    except:
+                        break
+                    else:
+                        if not PoisonPill:
+                            root.after(Interval,task)
+
+                if not analysis_complete:
+                    if not PoisonPill:
+                        root.after(10, self.run)
+
+
+        threaded_animation = _threaded_animation(Queue = q)
+
+        self._step()
+
+
+    def _stop(self, *args):
+        # On stop we disconnect all of our events.
+        self._fig.canvas.mpl_disconnect(self._resize_id)
+        self._fig.canvas.mpl_disconnect(self._close_id)
+
+    def _setup_blit(self):
+        # Setting up the blit requires: a cache of the background for the
+        # axes
+        self._blit_cache = dict()
+        self._drawn_artists = []
+        self._resize_id = self._fig.canvas.mpl_connect('resize_event',
+                                                       self._handle_resize)
+        self._post_draw(True)
+
+    def _blit_clear(self, artists, bg_cache):
+        # Get a list of the axes that need clearing from the artists that
+        # have been drawn. Grab the appropriate saved background from the
+        # cache and restore.
+        axes = {a.axes for a in artists}
+        for a in axes:
+            if a in bg_cache:
+                a.figure.canvas.restore_region(bg_cache[a])
+
+
+    #######################################################################
+    ### Initialize the drawing by returning a sequence of blank artists ###
+    #######################################################################
+    def _init_draw(self):
+
+        self._drawn_artists = EmptyPlots
+
+        for a in self._drawn_artists:
+            a.set_animated(self._blit)
+
+
+    def _handle_resize(self, *args):
+        # On resize, we need to disable the resize event handling so we don't
+        # get too many events. Also stop the animation events, so that
+        # we're paused. Reset the cache and re-init. Set up an event handler
+        # to catch once the draw has actually taken place.
+
+        #################################################
+        ### Stop the event source and clear the cache ###
+        #################################################
+        self._fig.canvas.mpl_disconnect(self._resize_id)
+        self._blit_cache.clear()
+        self._init_draw()
+        self._resize_id = self._fig.canvas.mpl_connect('draw_event',
+                                                       self._end_redraw)
+
+
+    def _end_redraw(self, evt):
+        # Now that the redraw has happened, do the post draw flushing and
+        # blit handling. Then re-enable all of the original events.
+        self._post_draw(True)
+        self._fig.canvas.mpl_disconnect(self._resize_id)
+        self._resize_id = self._fig.canvas.mpl_connect('resize_event',
+                                                       self._handle_resize)
+
+    def _draw_next_frame(self, framedata, fargs = None):
+        # Breaks down the drawing of the next frame into steps of pre- and
+        # post- draw, as well as the drawing of the frame itself.
+        self._pre_draw(framedata)
+        self._draw_frame(framedata, fargs)
+        self._post_draw(False)
+
+
+    def _pre_draw(self, framedata):
+        # Perform any cleaning or whatnot before the drawing of the frame.
+        # This default implementation allows blit to clear the frame.
+        self._blit_clear(self._drawn_artists, self._blit_cache)
+
+    ###########################################################################
+    ### Retrieve the data from _animation and blit the data onto the canvas ###
+    ###########################################################################
+    def _draw_frame(self, framedata, fargs):
+
+
+        self._drawn_artists = self._func(framedata, *self._args)
+
+        if self._drawn_artists is None:
+            raise RuntimeError('The animation function must return a '
+                               'sequence of Artist objects.')
+        self._drawn_artists = sorted(self._drawn_artists,
+                                     key=lambda x: x.get_zorder())
+
+        for a in self._drawn_artists:
+            a.set_animated(self._blit)
+
+
+    def _post_draw(self, redraw):
+        # After the frame is rendered, this handles the actual flushing of
+        # the draw, which can be a direct draw_idle() or make use of the
+        # blitting.
+
+        if redraw:
+
+            # Data plots #
+            self._fig.canvas.draw()
+
+        elif self._drawn_artists:
+
+            self._blit_draw(self._drawn_artists, self._blit_cache)
+
+
+    # The rest of the code in this class is to facilitate easy blitting
+    def _blit_draw(self, artists, bg_cache):
+        # Handles blitted drawing, which renders only the artists given instead
+        # of the entire figure.
+        updated_ax = []
+        for a in artists:
+            # If we haven't cached the background for this axes object, do
+            # so now. This might not always be reliable, but it's an attempt
+            # to automate the process.
+            if a.axes not in bg_cache:
+                bg_cache[a.axes] = a.figure.canvas.copy_from_bbox(a.axes.bbox)
+            a.axes.draw_artist(a)
+            updated_ax.append(a.axes)
+
+        # After rendering all the needed artists, blit each axes individually.
+        for ax in set(updated_ax):
+            ax.figure.canvas.blit(ax.bbox)
 
 
     ## callback that is called every 'interval' ms ##
-    def _quick_step(self):
+    def _step(self):
+        global file_list, sample_list, analysis_complete
 
         ### look for the file here ###
         frequency = int(frequency_list[self.count])
 
-        filename = RetrieveFile(self.electrode, frequency)
+        filename, filename2, filename3 = _retrieve_file(1,self.electrode,frequency)
 
-        myfile = mypath + filename                    ### path of raw data .csv file
+        myfile = mypath + filename               ### path of your file
+        myfile2 = mypath + filename2               ### path of your file
+        myfile3 = mypath + filename3               ### path of your file
 
         try:
             mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-            self.search_val = 0                       ### reset the search value
+
         except:
-            print(filename,'does not exist','\n')
-            time.sleep(0.1)
-            mydata_bytes = 1
+            try:
+                mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                myfile = myfile2
+            except:
+                try:
+                    mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                    myfile = myfile3
+                except:
+                    mydata_bytes = 1
 
         #################################################################
         #### If the file meets the size requirement, analyze the data ###
         #################################################################
         if mydata_bytes > 1000:
-
-            #######################################################
-            ### Perform the next iteration of the data analysis ###
-            #######################################################
-            animation.TimedAnimation._step(self)
-
-            ##################################################################
-            ### If the function has analyzed each frequency for this file, ###
-            ### move onto the next file and reset the frequency index      ###
-            ##################################################################
-            if self.count == self.frequency_limit:
-
-                #########################################################################
-                ### If the function has analyzed the final final, remove the callback ###
-                #########################################################################
-                if self.file == numFiles:
-                    print('\n   FILE %s. ElectrochemicalAnimation DONE WITH DATA ANALYSIS. REMOVING CALLBACK.      \n' % str(self.file))
-
-                    self.event_source.remove_callback(self._quick_step)
-
-                else:
-                    self.file += 1
-                    print('\n   ElectrochemicalAnimation MOVING ONTO FILE %s     \n' % str(self.file))
-                    self.count = 0
-
-            else:
-                self.count += 1
+            #self.FileLabel['text'] = 'Found %s' % filename
+            print('%s%d: Queueing %s' % (self.spacer,self.electrode,filename))
+            q.put(lambda: self._run_analysis(myfile,frequency))
 
         else:
-            time.sleep(0.1)
+            if not PoisonPill:
+                root.after(100,self._step)
 
-
-
-
-
-                                        ##############################
-                                        ##############################
-                                        ### END OF ANIMATION CLASS ###
-                                        ##############################
-                                        ##############################
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-
-#---------------------------------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------------------------------#
-
-
-
-
-                            ###################################################
-                            ###################################################
-                            ############ RAW DATA ANALYSIS CLASS ##############
-                            ######     Analyzes raw voltammogram and     ######
-                            ######  returns a list of animated artists   ######
-                            ######  to ElectrochemicalAnimation to be    ######
-                            ######              visualized               ######
-                            ###################################################
-                            ###################################################
-
-
-
-class RawVoltammogramVisualization():
-
-    def __init__(self):
-        global figures, anim
-
-        ######################################################################
-        ### Initialize Animation (Visualization) for each electrode figure ###
-        ######################################################################
-        fig_count = 0                   # index value for the frame
-        for figure in figures:
-            fig, self.ax = figure
-            electrode = electrode_list[fig_count]
-            self.Frames = RawGenerator(fig_count, self.ax)
-            anim.append(ElectrochemicalAnimation(fig, self.ax, self.Animate, self.Frames, fig_count, electrode,  handle = 'Data_Analysis', init_func = lambda: self.Initialize(fig_count)))
-            fig_count += 1
-
-
-    def Initialize(self, num):
-        try:
-            return EmptyPlots
-        except:
-            print('Error in RawVoltammogramVisualization.Initialize')
-
-
-
-    ####################################################
-    ### Animate the data that is yielded by the      ###
-    ### generator function, Frames.
-    ### This function sets the data of the animated  ###
-    ### artists and returns the list of artists to   ###
-    ### ElectrochemicalAnimation to be visualized    ###
-    ####################################################
-    def Animate(self, args):
-
-        if key > 0:
-            while True:
-
-                file, frequency_axis, charge_axis, currents, potentials,adjusted_potentials, smooth_currents, adjusted_currents, regression, num, count = args
-
-                ################################################################
-                ### Acquire the artists for this electrode at this frequency ###
-                ### and get the data that will be visualized                 ###
-                ################################################################
-                plots = plot_list[num]                              # 'count' is the frequency index value
-
-
-                ##########################
-                ### Visualize the data ###
-                ##########################
-
-                #--- Peak Height ---#
-                index = file - 1
-                data = data_list[num][count][:index]                     # 'num' is the electrode index value
-
-                zipped = zip(potentials,currents)
-                for value in zipped:
-                    print(value)
-
-                print('\n',len(frequency_axis))
-                print(len(charge_axis))
-
-                print(len(potentials))
-                print(len(smooth_currents))
-
-                print(len(adjusted_potentials))
-                print(len(regression))
-
-                ####################################################
-                ### Set the data of the artists to be visualized ###
-                ####################################################
-                plots[0].set_data(potentials,currents)          # Smooth current voltammogram
-                plots[1].set_data(adjusted_potentials,regression)      # Regression voltammogram
-                plots[2].set_data(frequency_axis,charge_axis)
-
-                if SelectedOptions == 'Area Under the Curve':
-                    #--- Shaded region of Area Under the Curve ---#
-                    if xstart == 0:
-                        xstart = 1
-                    if xend == 0:
-                        xend = 1
-                    vertices = [(potentials[xstart],currents[xstart]), *zip(adjusted_potentials, adjusted_currents), (potentials[xend],currents[xend])]
-                    plots[3].set_xy(vertices)
-
-
-                return plots
-
-
-        else:
-            file = 1
-            EmptyPlots = args
-            time.sleep(0.1)
-            print('\n Yielding Empty Plots in Animation \n')
-            return EmptyPlots
-
-
-
-
-##################################################################
-### Frames Generator: Yields data to Animate for visualization ###
-##################################################################
-class RawGenerator():
-    def __init__(self, num, ax):
-
-        self.num = num
-        self.electrode = electrode_list[self.num]
-        self.ax = ax
-        self.file = 1
-        self.search_val = 0                          # Time spent searching for file (in seconds)
-        self.frequency_axis = []
-        self.charge_axis = []
-
-        ###############################################################
-        ### Get the index value of the data depending on if the     ###
-        ### electrodes are in the same .txt file or separate files  ###
-        ###############################################################
-        if e_var == 'single':
-            self.list_val = (self.electrode*3)-2
-        elif e_var == 'multiple':
-            self.list_val = 3
-
-
-    def __call__(self):
-        global file_list
-
-        #---Analyze Data---#
+    def _check_queue():
 
         while True:
-            if key > 0:
-                while self.file <= numFiles:
-
-                    if self.file not in file_list:
-                        index = self.file - 1
-                        file_list[index] = self.file
-
-                    count = 0                                                           # Frequency index value
-
-                    #-- Iterate through each frequency of the electrode --#
-                    for freq in frequency_list:
-                        frequency = str(freq)
-
-                        ##########################################################
-                        ### Yield data (args) to animate to visualize the data ###
-                        ##########################################################
-                        yield self.Analyze(self.file, count, frequency, SelectedOptions)
-
-                        count += 1      # move on to next freuency index
-
-                    self.file += 1
-
-
+            try:
+                print('%sChecking Queue' % self.spacer)
+                task = q.get(block=False)
+            except:
+                print('%sQueue Empty' % self.spacer)
                 break
-
-            #--- If data analysis fails, return an empty plot to animate ---#
             else:
-                print('RawVoltammogramVisualization: yielding empty plots')
-                yield EmptyPlots
+                if not PoisonPill:
+                    root.after(1,self.task)
 
-        print('\n ANALYSIS DONE WITH ANIMATION \n')
+        if not analysis_complete:
+            if not PoisonPill:
+                root.after(5, self._check_queue)
 
+    def _run_analysis(self,myfile,frequency):
+        #global post_analysis
 
-    def ReadData(self, myfile, electrode):
+        #######################################################
+        ### Perform the next iteration of the data analysis ###
+        #######################################################
+        try:
+            framedata = self.generator(myfile, frequency)
+            self._draw_next_frame(framedata)
+            track.tracking(self.file,frequency)
 
+        except StopIteration:
+            return False
 
-        #####################
-        ### Read the data ###
-        #####################
+        ##########################################################################
+        ### if the resize limit has been reached, resize and redraw the figure ###
+        ##########################################################################
+        if self.resize_limit is not None:
+            if self.file == self.resize_limit:
 
-        #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            variables = len(mydata.readlines())
-            potentials = [0]*variables
-            potential_dict = {}
-            currents = [0]*variables
+                # Dont redraw if this is the already the last file #
 
-        #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
-            list_num = 0
-            for line in mydata:
-                line = line.replace('\n','')
-                line = line.split(' ')
-                check_split = line[0]
-                check_split = check_split.replace(',','')
+                if self.resize_limit < numFiles:
 
-                try:
-                    check_split = float(check_split)
-                    check_split = True
-                except:
-                    check_split = False
+                    ###############################################################
+                    ### If this is the last frequency, move onto the next limit ###
+                    ###############################################################
+                    if self.count == self.frequency_limit:
+                        self.resize_limit = self.resize_limit + self.resize_interval
 
-                if check_split:
-                    #---Currents---#
-                    current_value = line[self.list_val]                      # list_val is the index value of the given electrode
-                    current_value = current_value.replace(',','')
-                    current_value = float(current_value)
-                    current_value = current_value*1000000
-                    currents[list_num] = current_value
+                        ### If the resize limit is above the number of files (e.g.
+                        ### going out of bounds for the last resize event) then
+                        ### readjust the final interval to the number of files
+                        if self.resize_limit >= numFiles:
+                            self.resize_limit = numFiles
 
-                    #---Potentials---#
-                    potential_value = line[0]
-                    potential_value = potential_value.strip(',')
-                    potential_value = float(potential_value)
-                    potentials[list_num] = potential_value
-                    list_num = list_num + 1
-
-        ### if there are 0's in the list (if the preallocation added too many)
-        ### then remove them
-
-        cut_value = 0
-        for value in potentials:
-            if value == 0:
-                cut_value += 1
-
-
-        if cut_value > 0:
-            potentials = potentials[:-cut_value]
-            currents = currents[:-cut_value]
+                    ############################################################
+                    ### 'if' statement used to make sure the plots dont get  ###
+                    ### erased when there are no more files to be visualized ###
+                    ############################################################
+                    try:
+                        self._redraw_figures()
+                    except:
+                        print('\nCould not redraw figure\n')
 
 
 
-        #######################
-        ### Return the data ###
-        #######################
-        return potentials, currents
+        ##################################################################
+        ### If the function has analyzed each frequency for this file, ###
+        ### move onto the next file and reset the frequency index      ###
+        ##################################################################
+        if self.count == self.frequency_limit:
 
-    #####################################################
-    ### Peak Height Extraction and A.U.C. Integration ###
-    #####################################################
-    def Analyze(self, file, count, freq, method):
-        global PoisonPill, sg_window
 
-        freq = int(freq)
-        index = file - 1
 
-        ##############################
-        #### Call the current file ###
-        ##############################
-        filename = RetrieveFile(self.electrode, freq)
+            #########################################################################
+            ### If the function has analyzed the final final, remove the callback ###
+            #########################################################################
+            if self.file == numFiles:
+                print('\n%sFILE %s.\n%sElectrode %d\n%sData Analysis Complete\n' % (self.spacer,str(self.file),self.spacer,self.electrode,self.spacer))
 
-        myfile = mypath + filename                    ### path of raw data .csv file
-        print('Electrode: %d at frequency %d' % (electrode_list[self.num],frequency_list[count]))
+                #post_analysis._analysis_finished()
 
+            else:
+                self.file += 1
+                self.index += 1
+                print('%smoving onto file %s\n' % (self.spacer,str(self.file)))
+                self.count = 0
+                root.after(1, self._step)
+
+
+
+        ##########################################################
+        ### Elif the function has not analyzed each frequency  ###
+        ### for this file, move onto the next frequency        ###
+        ##########################################################
+        elif self.count < self.frequency_limit:
+            self.count += 1
+
+            root.after(1, self._step)
+
+
+    def _raw_generator(self, myfile, frequency):
+
+        ########################################
+        ### Polynomical Regression Range (V) ###
+        ########################################
+        #--- if the frequency is equal or below cutoff_frequency, use the low freq parameters ---#
+        if frequency <= cutoff_frequency:
+            xstart = low_xstart
+            xend = low_xend
+
+        #--- if the frequency is above cutoff_frequency, use the high freq parameters ---#
+        else:
+            xstart = high_xstart
+            xend = high_xend
 
         ###################################
         ### Retrieve data from the File ###
         ###################################
-        potentials, currents = self.ReadData(myfile, self.electrode)
+        potentials, currents, data_dict = ReadData(myfile, self.electrode)
+        print(myfile)
 
         cut_value = 0
         for value in potentials:
@@ -1870,26 +2206,22 @@ class RawGenerator():
         ################################################################
         ### Adjust the potentials depending on user-input parameters ###
         ################################################################
-        #--- if the frequency is equal or below 50Hz, use the low freq parameters ---#
-        if freq <= 50:
-            xstart = low_xstart
-            xend = low_xend
-
-        #--- if the frequency is above 50Hz, use the high freq parameters ---#
-        else:
-            xstart = high_xstart
-            xend = high_xend
-
         adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
 
         #########################################
-        ### Savitzky-Golay smoothing          ###
+        ### Savitzky-Golay Smoothing          ###
         #########################################
-        sg_potentials = [abs(potential) for potential in potentials]
-        sg_range = len([x for x in sg_potentials if x <= (sg_potentials[0]+(sg_window/1000))])
+        min_potential = min(potentials)            # find the min potential
+        sg_limit = sg_window/1000                  # mV --> V
 
+        # shift all values positive
+        sg_potentials = [x - min_potential for x in potentials]
 
-        #--- Savitzky-golay Window must be greater than the range
+        # find how many points fit within the sg potential window
+        # this will be how many points are included in the rolling average
+        sg_range = len([x for x in sg_potentials if x <= sg_limit])
+
+        #--- Savitzky-golay Window must be greater than the range ---#
         if sg_range <= sg_degree:
             sg_range = sg_degree + 1
 
@@ -1897,15 +2229,20 @@ class RawGenerator():
         if sg_range % 2 == 0:
             sg_range = sg_range + 1
 
+        # Apply the smoothing function and create a dictionary pairing
+        # each potential with its corresponding current
         try:
             smooth_currents = savgol_filter(currents, sg_range, sg_degree)
             data_dict = dict(zip(potentials,smooth_currents))
-
         except ValueError:
             smooth_currents = savgol_filter(currents, 15, sg_degree)
             data_dict = dict(zip(potentials,smooth_currents))
 
-        #-- match the adjusted potentials with the corresponding current --#
+
+        #######################################
+        ### adjust the smooth currents to   ###
+        ### match the adjusted potentials   ###
+        #######################################
         adjusted_currents = []
         for potential in adjusted_potentials:
             adjusted_currents.append(data_dict[potential])
@@ -1919,11 +2256,13 @@ class RawGenerator():
         ### Polynomial Regression ###
         #############################
         eval_regress = np.polyval(polynomial_coeffs,adjusted_potentials).tolist()
-        data_dictionary = dict(zip(adjusted_potentials, eval_regress))
+        regression_dict = dict(zip(eval_regress, adjusted_potentials))      # dictionary with current: potential
 
-        ########################################################################
-        ### Extract the local minima and maxima of the polynomial regression ###
-        ########################################################################
+        ###############################################
+        ### Absolute Max/Min Peak Height Extraction ###
+        ###############################################
+        #-- If the user selects 'Absolute Max/Min' in the 'Peak Height Extraction Settings'
+        #-- within the Settings toolbar this analysis method will be used for PHE
         fit_half = round(len(eval_regress)/2)
 
         min1 = min(eval_regress[:fit_half])
@@ -1931,29 +2270,13 @@ class RawGenerator():
         max1 = max(eval_regress[:fit_half])
         max2 = max(eval_regress[fit_half:])
 
-        PHmin1 = min(smooth_currents[:fit_half])
-        PHmin2 = min(smooth_currents[fit_half:])
-        PHmax1 = max(smooth_currents[:fit_half])
-        PHmax2 = max(smooth_currents[fit_half:])
-
-        PH2min1 = min(adjusted_currents[:fit_half])
-        PH2min2 = min(adjusted_currents[fit_half:])
-        PH2max1 = max(adjusted_currents[:fit_half])
-        PH2max2 = max(adjusted_currents[fit_half:])
-
 
         ################################################################
         ### If the user selected Peak Height Extraction, analyze PHE ###
         ################################################################
 
         if SelectedOptions == 'Peak Height Extraction':
-            ##############################
-            ### Peak Height Extraction ###
-            ##############################
             Peak_Height = max(max1,max2)-min(min1,min2)
-            Peak_Height1 = max(PHmax1,PHmax2)-min(PHmin1,PHmin2)
-            Peak_Height2 = max(PH2max1,PH2max2)-min(PH2min1,PH2min2)
-
             data = Peak_Height
 
 
@@ -1969,14 +2292,11 @@ class RawGenerator():
             AUC_index = 1
             AUC = 0
 
-            #--- Determine currents using either a corresponding voltage
-            #    range or the number of points discarded
-            AUC_potentials = adjusted_potentials
-            AUC_currents = adjusted_currents
+            AUC_potentials = [abs(potential) for potential in adjusted_potentials]
 
             #--- Find the minimum value and normalize it to 0 ---#
-            AUC_min = min(AUC_currents)
-            AUC_currents = [Y - AUC_min for Y in AUC_currents]
+            AUC_min = min(adjusted_currents)
+            AUC_currents = [Y - AUC_min for Y in adjusted_currents]
 
             #--- Midpoint Riemann Sum ---#
             while AUC_index <= len(AUC_currents) - 1:
@@ -1990,30 +2310,145 @@ class RawGenerator():
         #######################################
         ### Save the data into global lists ###
         #######################################
-        data_list[self.num][count][index] = data
 
+        data_list[self.num][self.count][self.index] = data
 
-        frequency = frequency_list[count]
+        frequency = frequency_list[self.count]
         self.frequency_axis.append(int(frequency))
 
         charge = (data/frequency) * 100000
         self.charge_axis.append(Peak_Height/frequency)
 
-
-        if SaveVar:
-            text_file_export.Track(str(freq), file)
-
         #####################################################
         ### Return data to the animate function as 'args' ###
         #####################################################
 
-        return self.file, self.frequency_axis, self.charge_axis, currents, potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress, self.num, count
+        return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress
+
+
+    def _animate(self, framedata, *args):
+
+        if key > 0:
+            while True:
+
+                potentials, adjusted_potentials, smooth_currents, adjusted_currents, regression = framedata
+
+                print('\n%s%d: %dHz\n%s_animate' % (self.spacer,self.electrode,frequency_list[self.count],self.spacer))
+
+
+                ################################################################
+                ### Acquire the artists for this electrode at this frequency ###
+                ### and get the data that will be visualized                 ###
+                ################################################################
+                plots = plot_list[self.num]
+
+                ##########################
+                ### Visualize the data ###
+                ##########################
+
+                #--- Peak Height ---#
+
+                data = data_list[self.num][self.count][:len(self.file_list)]                     # 'num' is the electrode index value
+
+                ####################################################
+                ### Set the data of the artists to be visualized ###
+                ####################################################
+                plots[0].set_data(potentials,smooth_currents)          # Smooth current voltammogram
+                plots[1].set_data(adjusted_potentials,regression)      # Regression voltammogram
+                plots[2].set_data(self.frequency_axis,self.charge_axis)
+
+
+                print('returning plots!')
+                return plots
+
+
+        else:
+            file = 1
+            EmptyPlots = framedata
+            time.sleep(0.1)
+            print('\n Yielding Empty Plots in Animation \n')
+            return EmptyPlots
+
+
+
+
+                                        ##############################
+                                        ##############################
+                                        ### END OF ANIMATION CLASS ###
+                                        ##############################
+                                        ##############################
 
 
 
 #---------------------------------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------------------------------#
 
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+#--------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
+
+
+
+                        ###############################################################################
+                        ###############################################################################
+                        ###### Classes and Functions for Real-Time Tracking and Text File Export ######
+                        ###############################################################################
+                        ###############################################################################
+
+class Track():
+    def __init__(self):
+
+        self.track_list = [1]*numFiles
+
+    def tracking(self, file, frequency):
+
+        index = file - 1
+
+        if self.track_list[index] == electrode_count:
+
+            if SaveVar:
+                text_file_export.ExportData(file,frequency)
+
+
+            self.track_list[index] = 1
+
+        else:
+            self.track_list[index] += 1
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------#
 
 
 
@@ -2045,6 +2480,7 @@ class RawGenerator():
 
 
 
+
 ##################################
 ### Real-Time Text File Export ###
 ##################################
@@ -2071,9 +2507,9 @@ class TextFileExport():
             TxtList.append('Charge_E%d(uC)' % (E_count))
             E_count += 1
 
-        TxtList.append('Average')
+        TxtList.append('Avg.PeakHeight(uA)')
         TxtList.append('Standard_Deviation')
-        TxtList.append('Charge(uC)')
+        TxtList.append('Avg.Charge(uC)')
 
         with open(FileHandle,'w+',encoding='utf-8', newline = '') as input:
             writer = csv.writer(input, delimiter = ' ')
@@ -2082,7 +2518,7 @@ class TextFileExport():
     #################################################################
     ### Write the data from the current file into the Export File ###
     #################################################################
-    def ExportData(self, frequency, file):
+    def ExportData(self, file,frequency):
 
         list = []
         index = file - 1
@@ -2135,58 +2571,19 @@ class TextFileExport():
             print('\n\n','ERROR IN TEXT FILE EXPORT','\n\n')
             time.sleep(3)
 
-    def Track(self, frequency, file):
-        global tracker
-
-        tracker += 1
-        print('tracker for file %d, frequency %d:' % (file, int(frequency)),tracker)
-
-        if tracker == electrode_count:
-            if SaveVar:
-                text_file_export.ExportData(frequency, file)
-            tracker = 0
-
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
-
-
-
-
-#---------------------------------------------------------------------------------------------------#
-#---------------------------------------------------------------------------------------------------#
-                        ################################
-                        ######  Global Functions  ######
-                        ################################
-
-##############################
-### Retrieve the file name ###
-##############################
-def RetrieveFile(electrode, frequency):
-
-    electrode = int(electrode)
-    frequency = int(frequency)
-
-    if e_var == 'single':
-        filename = '%s%dHz_.txt' % (handle_variable, frequency)
-    elif e_var == 'multiple':
-        filename = 'E%s_%s%sHz_.txt' % (electrode,handle_variable,frequency)
-
-    return filename
-
-
-
 
 
                     ############################################
                     ### Initialize GUI to start the program  ###
                     ############################################
 
-
 if __name__ == '__main__':
-    UserInterface = MainWindow()
 
-    #-- Button Styling --#
+    root = tk.Tk()
+    app = MainWindow(root)
     style = ttk.Style()
     style.configure('On.TButton', foreground = 'blue', font = LARGE_FONT, relief = 'raised', border = 100)
     style.configure('Off.TButton', foreground = 'black', font = MEDIUM_FONT, relief = 'sunken', border = 5)
@@ -2195,7 +2592,7 @@ if __name__ == '__main__':
     while True:
         #--- initiate the mainloop ---#
         try:
-            UserInterface.mainloop()
+            root.mainloop()
         #--- escape scrolling error ---#
         except UnicodeDecodeError:
             pass
