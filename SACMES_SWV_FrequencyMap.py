@@ -132,17 +132,19 @@ def _retrieve_file(file, electrode, frequency):
 
     try:
         if e_var == 'single':
-            filename = '%s%dHz_.txt' % (handle_variable, frequency)
-            filename2 = '%s%dHz_%d.txt' % (handle_variable, frequency, file)
-            filename3 = '%s%dHz__%d.txt' % (handle_variable, frequency, file)
+            filename = '%s%dHz.txt' % (handle_variable, frequency)
+            filename2 = '%s%dHz_.txt' % (handle_variable, frequency)
+            filename3 = '%s%dHz_%d.txt' % (handle_variable, frequency, file)
+            filename4 = '%s%dHz__%d.txt' % (handle_variable, frequency, file)
 
 
         elif e_var == 'multiple':
-            filename = 'E%s_%s%sHz_.txt' % (electrode,handle_variable,frequency)
-            filename2 = 'E%s_%s%sHz_%d.txt' % (electrode,handle_variable,frequency,file)
-            filename3 = 'E%s_%s%sHz__%d.txt' % (electrode,handle_variable,frequency,file)
+            filename = 'E%s_%s%sHz.txt' % (electrode,handle_variable,frequency)
+            filename2 = 'E%s_%s%sHz_.txt' % (electrode,handle_variable,frequency)
+            filename3 = 'E%s_%s%sHz_%d.txt' % (electrode,handle_variable,frequency,file)
+            filename4 = 'E%s_%s%sHz__%d.txt' % (electrode,handle_variable,frequency,file)
 
-        return filename, filename2, filename3
+        return filename, filename2, filename3, filename4
 
     except:
         print('\nError in _retrieve_file\n')
@@ -958,12 +960,12 @@ class CheckPoint():
 
         frequency = frequency_list[0]
 
-        filename, filename2, filename3 = _retrieve_file(1,self.electrode,frequency)
+        filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
 
         myfile = mypath + filename               ### path of your file
         myfile2 = mypath + filename2               ### path of your file
         myfile3 = mypath + filename3               ### path of your file
-
+        myfile4 = mypath + filename4               ### path of your file
         try:
             mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
 
@@ -976,7 +978,11 @@ class CheckPoint():
                     mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
                     myfile = myfile3
                 except:
-                    mydata_bytes = 1
+                    try:
+                        mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                        myfile = myfile4
+                    except:
+                        mydata_bytes = 1
 
         if mydata_bytes > 1000:
             if not self.already_verified[self.electrode]:
@@ -1236,11 +1242,12 @@ class InitializeFigureCanvas():
         try:
             print('Initialize: Electrode %s' % str(electrode))
             frequency = frequency_list[0]
-            filename, filename2, filename3 = _retrieve_file(1,electrode,frequency)
+            filename, filename2, filename3, filename4 = _retrieve_file(1,electrode,frequency)
 
             myfile = mypath + filename               ### path of your file
             myfile2 = mypath + filename2               ### path of your file
             myfile3 = mypath + filename3               ### path of your file
+            myfile4 = mypath + filename4               ### path of your file
 
             try:
                 mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
@@ -1254,7 +1261,11 @@ class InitializeFigureCanvas():
                         mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
                         myfile = myfile3
                     except:
-                        mydata_bytes = 1
+                        try:
+                            mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                            myfile = myfile4
+                        except:
+                            mydata_bytes = 1
 
 
             if mydata_bytes > 1000:
@@ -2040,13 +2051,15 @@ class ElectrochemicalAnimation():
 
         ### look for the file here ###
         frequency = int(frequency_list[self.count])
+        print(frequency)
 
-        filename, filename2, filename3 = _retrieve_file(1,self.electrode,frequency)
+        filename, filename2, filename3, filename4 = _retrieve_file(self.file,self.electrode,frequency)
 
         myfile = mypath + filename               ### path of your file
         myfile2 = mypath + filename2               ### path of your file
         myfile3 = mypath + filename3               ### path of your file
-
+        myfile4 = mypath + filename4               ### path of your file
+        print(myfile)
         try:
             mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
 
@@ -2059,7 +2072,11 @@ class ElectrochemicalAnimation():
                     mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
                     myfile = myfile3
                 except:
-                    mydata_bytes = 1
+                    try:
+                        mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                        myfile = myfile4
+                    except:
+                        mydata_bytes = 1
 
         #################################################################
         #### If the file meets the size requirement, analyze the data ###
@@ -2167,8 +2184,8 @@ class ElectrochemicalAnimation():
         ### for this file, move onto the next frequency        ###
         ##########################################################
         elif self.count < self.frequency_limit:
+            print('\nnext\n')
             self.count += 1
-
             root.after(1, self._step)
 
 
