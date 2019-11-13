@@ -3164,13 +3164,14 @@ class InitializeFrequencyMapCanvas():
             minimum_current = min(min1,min2)
             maximum_current = max(max1,max2)
             peak_current = maximum_current - minimum_current
+            charge = peak_current/(frequency_list[0])
 
             ## Reverse voltammogram to match the 'Texas' convention ##
             ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
             ax[0,0].set_ylim(minimum_current-abs(min_raw*minimum_current),maximum_current+abs(max_raw*maximum_current))         # voltammogram
 
             ## set the limits of the lovric plot ##
-            ax[1,0].set_ylim(0,max_data*.05)
+            ax[1,0].set_ylim(charge-abs(min_data*charge),charge+abs(max_data*charge))
             ax[1,0].set_xlim(int(frequency_list[0]),int(frequency_list[-1]))
 
             return True
