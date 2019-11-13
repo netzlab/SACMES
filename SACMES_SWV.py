@@ -172,6 +172,7 @@ def _retrieve_file(file, electrode, frequency):
             filename3 = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file, extension)
             filename4 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file, extension)
 
+        print(filename)
         return filename, filename2, filename3, filename4
 
 
@@ -1250,38 +1251,43 @@ class CheckPoint():
             myfile2 = mypath + filename2               ### path of your file
             myfile3 = mypath + filename3               ### path of your file
             myfile4 = mypath + filename4               ### path of your file
+            print(myfile)
 
             try:
                 mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                print(myfile)
             except:
                 try:
                     mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
                     myfile = myfile2
+                    print(myfile)
                 except:
                     try:
                         mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
                         myfile = myfile3
+                        print(myfile)
                     except:
                         try:
                             mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
                             myfile = myfile4
+                            print(myfile)
                         except:
                             mydata_bytes = 1
 
 
-                if mydata_bytes > 1000:
-                    if not self.already_verified[self.electrode][frequency]:
-                        self.already_verified[self.electrode][frequency] = True
-                        if not self.StopSearch:
-                            self.label_dict[self.electrode][frequency]['fg'] = 'green'
-                            self.analysis_count += 1
-
-
-                if self.analysis_count == electrode_count:
+            if mydata_bytes > 1000:
+                if not self.already_verified[self.electrode][frequency]:
+                    self.already_verified[self.electrode][frequency] = True
                     if not self.StopSearch:
-                        self.StopSearch = True
-                        self.win.destroy()
-                        root.after(10,self.proceed)
+                        self.label_dict[self.electrode][frequency]['fg'] = 'green'
+                        self.analysis_count += 1
+
+
+            if self.analysis_count == electrode_count:
+                if not self.StopSearch:
+                    self.StopSearch = True
+                    self.win.destroy()
+                    root.after(10,self.proceed)
 
             if self.num < self.electrode_limit:
                 self.num += 1
@@ -3472,16 +3478,19 @@ class ElectrochemicalAnimation():
                     mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
                     myfile = myfile2
                     filename = filename2
+                    print(myfile)
                 except:
                     try:
                         mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
                         myfile = myfile3
                         filename = filename3
+                        print(myfile)
                     except:
                         try:
                             mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
                             myfile = myfile4
                             filename = filename4
+                            print(myfile)
                         except:
                             mydata_bytes = 1
 
