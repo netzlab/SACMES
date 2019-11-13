@@ -2922,6 +2922,7 @@ class InitializeFrequencyMapCanvas():
             if electrode_frame not in frame_list:
                 frame_list.append(electrode_frame)
 
+<<<<<<< HEAD
             #--- Create empty plots to return to animate for initializing---#
             EmptyPlots = [smooth,regress,charge]
 
@@ -2930,6 +2931,17 @@ class InitializeFrequencyMapCanvas():
             #-- Return both the figure and the axes to be stored as global variables --#
             return fig, ax
 
+=======
+
+            empty_norm_ratiometric, = axes[0,0].plot([],[],'ro',markersize=1)
+            empty_KDM, = axes[0,1].plot([],[],'ro',markersize=1)
+            EmptyRatioPlots = [norm_ratiometric_plot,norm_injection,KDM,KDM_injection]
+
+
+
+
+            return figure, axes
+>>>>>>> parent of 321b63a... Updates to RunInitialization axes creation
 
         except:
             print('Error in MakeFigure')
@@ -3080,6 +3092,7 @@ class InitializeFrequencyMapCanvas():
             maximum_current = max(max1,max2)
             peak_current = maximum_current - minimum_current
 
+<<<<<<< HEAD
             ## Reverse voltammogram to match the 'Texas' convention ##
             ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
 
@@ -3092,6 +3105,17 @@ class InitializeFrequencyMapCanvas():
 
             elif SelectedOptions == 'Area Under the Curve':
                 ax[0,0].set_ylim(0,max_raw*max(max1,max2))
+=======
+            if SelectedOptions == 'Peak Height Extraction':
+                ax[0,subplot_count].set_ylim(min_raw*minimum_current,max_raw*maximum_current)                    # voltammogram
+                ax[1,subplot_count].set_ylim(min_data*peak_current,max_data*peak_current)                    # raw peak height
+                ax[2,subplot_count].set_ylim(min_norm,max_norm)                                                 # normalized peak height
+
+            elif SelectedOptions == 'Area Under the Curve':
+                ax[0,subplot_count].set_ylim(0,max_raw*maximum_current)
+                ax[1,subplot_count].set_ylim(min_data*AUC,max_data*AUC)
+                ax[2,subplot_count].set_ylim(min_norm,max_norm)
+>>>>>>> parent of 321b63a... Updates to RunInitialization axes creation
 
 
             return True
