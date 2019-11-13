@@ -71,6 +71,7 @@ PHE_method = 'Abs'      # default PHE Extraction is difference between absolute 
 #------------------------------------------------------------#
 
 InputFrequencies = [30,80,240]  # frequencies initially displayed in Frequency Listbox
+electrodes = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
@@ -172,7 +173,6 @@ def _retrieve_file(file, electrode, frequency):
             filename3 = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file, extension)
             filename4 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file, extension)
 
-        print(filename)
         return filename, filename2, filename3, filename4
 
 
@@ -232,8 +232,7 @@ def ReadData(myfile, electrode):
 
                 if check_split:
                     #---Currents---#
-                    current_value = line.split(delimiter)
-                    current_value = current_value[list_val]                      # list_val is the index value of the given electrode
+                    current_value = check_split_list[list_val]                      # list_val is the index value of the given electrode
                     current_value = current_value.replace(',','')
                     current_value = float(current_value)
                     current_value = current_value*1000000
@@ -357,7 +356,7 @@ class MainWindow(tk.Tk):
         #-- new frame --#
         row_value = 0
         container = tk.Frame(win, relief='groove',bd=2)
-        container.grid(row=row_value,column=0,padx=5,pady=5,ipadx=3)
+        container.grid(row=row_value,column=0,columnspan=2,padx=5,pady=5,ipadx=3)
 
         container_value = 0
         l = tk.Label(container, text="Current is in Column:")
@@ -365,7 +364,7 @@ class MainWindow(tk.Tk):
 
         container_value += 1
         self.list_val_entry = tk.Entry(container, width=5)
-        self.list_val_entry.insert(END,4)
+        self.list_val_entry.insert(END,current_column)
         self.list_val_entry.grid(row=container_value,column=0,pady=5)
 
         container_value = 0
@@ -374,7 +373,7 @@ class MainWindow(tk.Tk):
 
         container_value += 1
         self.voltage_column = tk.Entry(container, width=5)
-        self.voltage_column.insert(END,1)
+        self.voltage_column.insert(END,voltage_column)
         self.voltage_column.grid(row=container_value,column=1,pady=5)
 
         container_value += 1
@@ -390,10 +389,6 @@ class MainWindow(tk.Tk):
         self.spacing_val_entry = tk.Entry(inner_frame, width=4)
         self.spacing_val_entry.insert(END,3)
         self.spacing_val_entry.grid(row=0,column=0,pady=1)
-
-        container_value += 1
-        apply_list_val = ttk.Button(container, text="Apply", command=lambda: self.get_list_val())
-        apply_list_val.grid(row=container_value, column=0,columnspan=2,pady=6)
 
         #-- new frame --#
 
@@ -433,12 +428,16 @@ class MainWindow(tk.Tk):
         self.dta_value = tk.Radiobutton(box, text = 'dta',variable = self.extension_value, value = 3)
         self.dta_value.grid(row=box_value, column=1,pady=3)
 
+
         row_value += 1
+        apply_list_val = ttk.Button(win, text="Apply", command=lambda: self.get_list_val())
+        apply_list_val.grid(row=row_value, column=0,pady=6)
+
         exit = ttk.Button(win, text="Exit", command= lambda: win.destroy())
-        exit.grid(row=row_value, column=0,columnspan=2,pady=3)
+        exit.grid(row=row_value, column=1,pady=3)
 
     def get_list_val(self):
-        global current_column, current_column_index,voltage_column, voltage_column_index, spacing_index, delimiter, extension
+        global current_column, current_column_index,voltage_column, voltage_column_index, spacing_index, delimiter, extension, total_columns
 
         current_column = int(self.list_val_entry.get())
         current_column_index = current_column - 1
@@ -551,7 +550,6 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         self.ElectrodeListboxFrame.columnconfigure(0, weight=1)
         self.ElectrodeListboxFrame.columnconfigure(1, weight=1)
 
-        electrodes = [1,2,3,4,5,6,7,8]
         self.ElectrodeListExists = False
         self.ElectrodeLabel = tk.Label(self.ElectrodeListboxFrame, text='Select Electrodes:', font=LARGE_FONT)
         self.ElectrodeLabel.grid(row=0,column=0,columnspan=2, sticky = 'nswe')
@@ -1151,6 +1149,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 ####################################
 class CheckPoint():
     def __init__(self, parent, controller):
+        global total_columns
 
         #-- Check to see if the user's settings are accurate
         #-- Search for the presence of the files. If they exist,
@@ -1218,30 +1217,106 @@ class CheckPoint():
 
         self.electrode = electrode_list[self.num]
 
-        if method == 'Continuous Scan':
+        if not self.StopSearch:
+            if method == 'Continuous Scan':
 
-            for frequency in frequency_list:
 
-                filename, filename2 = _retrieve_file(1,self.electrode,frequency)
+                for frequency in frequency_list:
+
+                    filename, filename2 = _retrieve_file(1,self.electrode,frequency)
+
+                    myfile = mypath + filename               ### path of your file
+                    myfile2 = mypath + filename2               ### path of your file
+
+                    try:
+                        mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                    except:
+                        try:
+                            mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                            myfile = myfile2
+                        except:
+                            mydata_bytes = 1
+
+
+                    if mydata_bytes > 1000:
+
+                        if e_var == 'single':
+                            check_ = self.verify_multi(myfile)
+                        else:
+                            check_ = True
+
+                        if check_:
+                            if not self.already_verified[self.electrode][frequency]:
+                                self.already_verified[self.electrode][frequency] = True
+                                if not self.StopSearch:
+                                    self.label_dict[self.electrode][frequency]['fg'] = 'green'
+                                    self.analysis_count += 1
+
+                        if self.analysis_count == self.analysis_limit:
+                            if not self.StopSearch:
+                                self.StopSearch = True
+                                self.win.destroy()
+
+                                root.after(10,self.proceed)
+
+                if self.num < self.electrode_limit:
+                    self.num += 1
+
+                else:
+                    self.num = 0
+
+                if self.analysis_count < self.analysis_limit:
+                    if not self.StopSearch:
+                        root.after(100,self.verify)
+
+
+
+            elif method == 'Frequency Map':
+
+                frequency = frequency_list[0]
+
+                filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
 
                 myfile = mypath + filename               ### path of your file
                 myfile2 = mypath + filename2               ### path of your file
+                myfile3 = mypath + filename3               ### path of your file
+                myfile4 = mypath + filename4               ### path of your file
 
                 try:
                     mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                    print(myfile)
                 except:
                     try:
                         mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
                         myfile = myfile2
+                        print(myfile)
                     except:
-                        mydata_bytes = 1
+                        try:
+                            mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                            myfile = myfile3
+                            print(myfile)
+                        except:
+                            try:
+                                mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                                myfile = myfile4
+                                print(myfile)
+                            except:
+                                mydata_bytes = 1
+
 
                 if mydata_bytes > 1000:
-                    if not self.already_verified[self.electrode][frequency]:
-                        self.already_verified[self.electrode][frequency] = True
-                        if not self.StopSearch:
-                            self.label_dict[self.electrode][frequency]['fg'] = 'green'
-                            self.analysis_count += 1
+
+                    if e_var == 'single':
+                        check_ = self.verify_multi(myfile)
+                    else:
+                        check_ = True
+
+                    if check_:
+                        if not self.already_verified[self.electrode][frequency]:
+                            self.already_verified[self.electrode][frequency] = True
+                            if not self.StopSearch:
+                                self.label_dict[self.electrode][frequency]['fg'] = 'green'
+                                self.analysis_count += 1
 
                     if self.analysis_count == electrode_count:
                         if not self.StopSearch:
@@ -1257,72 +1332,63 @@ class CheckPoint():
 
                 if self.analysis_count < self.analysis_limit:
                     if not self.StopSearch:
-                        root.after(10,self.verify)
+                        root.after(200,self.verify)
 
 
+    def verify_multi(self, myfile):
+        global total_columns
 
-        elif method == 'Frequency Map':
+        # changing the column index
+        #---Set the electrode index value---#
+        check_ = False
+        with open(myfile,'r',encoding='utf-8') as mydata:
+            for line in mydata:
+                check_split_list = line.split(delimiter)
+                # delete any spaces that may come before the first value #
+                while True:
+                    if check_split_list[0] == '':
+                        del check_split_list[0]
+                    else:
+                        break
 
-            frequency = frequency_list[0]
+                # delete any tabs that may come before the first value #
+                while True:
+                    if check_split_list[0] == ' ':
+                        del check_split_list[0]
+                    else:
+                        break
 
-            filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
-
-            myfile = mypath + filename               ### path of your file
-            myfile2 = mypath + filename2               ### path of your file
-            myfile3 = mypath + filename3               ### path of your file
-            myfile4 = mypath + filename4               ### path of your file
-            print(myfile)
-
-            try:
-                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-                print(myfile)
-            except:
+                check_split = check_split_list[0]
+                check_split = check_split.replace(',','')
                 try:
-                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
-                    myfile = myfile2
-                    print(myfile)
+                    check_split = float(check_split)
+                    check_split = True
                 except:
-                    try:
-                        mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
-                        myfile = myfile3
-                        print(myfile)
-                    except:
-                        try:
-                            mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
-                            myfile = myfile4
-                            print(myfile)
-                        except:
-                            mydata_bytes = 1
+                    check_split = False
+
+                if check_split:
+                    total_columns = len(check_split_list)
+                    check_ = True
+                    break
 
 
-            if mydata_bytes > 1000:
-                if not self.already_verified[self.electrode][frequency]:
-                    self.already_verified[self.electrode][frequency] = True
-                    if not self.StopSearch:
-                        self.label_dict[self.electrode][frequency]['fg'] = 'green'
-                        self.analysis_count += 1
+        if check_:
+            list_val = current_column + (self.electrode-1)*spacing_index
 
+            if list_val > total_columns:
+                return False
 
-            if self.analysis_count == electrode_count:
-                if not self.StopSearch:
-                    self.StopSearch = True
-                    self.win.destroy()
-                    root.after(10,self.proceed)
-
-            if self.num < self.electrode_limit:
-                self.num += 1
             else:
-                self.num = 0
+                return True
 
-            if self.analysis_count < self.analysis_limit:
-                if not self.StopSearch:
-                    root.after(10,self.verify)
+        else:
+            print('\nverify_multi: could not find a line\nthat began with an integer\n')
+            return False
+
 
 
     def proceed(self):
         global wait_time, track, initialize, data_normalization, post_analysis
-
-        print('proceed')
 
         self.win.destroy()
 
@@ -3013,7 +3079,6 @@ class InitializeFrequencyMapCanvas():
             ### Retrieve the data ###
             #########################
             potentials, currents, data_dict = ReadData(myfile, electrode)
-            print(potentials)
             ##########################################
             ### Set the x axes of the voltammogram ###
             ##########################################
@@ -3102,17 +3167,11 @@ class InitializeFrequencyMapCanvas():
 
             ## Reverse voltammogram to match the 'Texas' convention ##
             ax[0,0].set_xlim(MAX_POTENTIAL,MIN_POTENTIAL)
+            ax[0,0].set_ylim(minimum_current-abs(min_raw*minimum_current),maximum_current+abs(max_raw*maximum_current))         # voltammogram
 
             ## set the limits of the lovric plot ##
             ax[1,0].set_ylim(0,max_data*.05)
             ax[1,0].set_xlim(int(frequency_list[0]),int(frequency_list[-1]))
-
-            if SelectedOptions == 'Peak Height Extraction':
-                ax[0,0].set_ylim(min_raw*minimum_current,10*max_raw*max(max1,max2))         # voltammogram
-
-            elif SelectedOptions == 'Area Under the Curve':
-                ax[0,0].set_ylim(0,max_raw*max(max1,max2))
-
 
             return True
 
@@ -3740,9 +3799,8 @@ class ElectrochemicalAnimation():
         ################################################################
         ### If the user selected Peak Height Extraction, analyze PHE ###
         ################################################################
-
+        Peak_Height = max(max1,max2)-min(min1,min2)
         if SelectedOptions == 'Peak Height Extraction':
-            Peak_Height = max(max1,max2)-min(min1,min2)
             data = Peak_Height
 
 
@@ -4459,44 +4517,6 @@ class PostAnalysis(tk.Frame):
         self.columnconfigure(1, weight=1)
 
 
-    def ElectrodeCurSelect(self, evt):
-        ###################################################
-        ## electrode_list: list; ints                    ##
-        ## electrode_dict: dict; {electrode: index}      ##
-        ## electrode_count: int                          ##
-        ###################################################
-
-        self.electrode_list = [self.ElectrodeCount.get(idx) for idx in self.ElectrodeCount.curselection()]
-        self.electrode_list = [int(electrode) for electrode in self.electrode_list]
-        electrode_count = len(electrode_list)
-
-        if electrode_count is 0:
-            self.ElectrodeListExists = False
-            self.ElectrodeLabel['fg'] = 'red'
-
-        elif electrode_count is not 0:
-            self.ElectrodeListExists = True
-            self.ElectrodeLabel['fg'] = 'black'
-
-    #--- Frequency Selection ---#
-    def FrequencyCurSelect(self, evt):
-        global frequency_list, frequency_dict, LowFrequency, HighFrequency
-
-        self.frequency_list = [self.FrequencyList.get(idx) for idx in self.FrequencyList.curselection()]
-
-        if len(frequency_list) is not 0:
-
-            self.FrequencyListExists = True
-            self.FrequencyLabel['fg'] = 'black'
-
-            for var in frequency_list:
-                var = int(var)
-
-        elif len(frequency_list) is 0:
-            self.FrequencyListExists = False
-            self.FrequencyLabel['fg'] = 'red'
-
-
 
     def _analysis_finished(self):
         global analysis_complete
@@ -4744,16 +4764,16 @@ class PostAnalysis(tk.Frame):
 
         #--- File Path ---#
         self.SelectFilePath = ttk.Button(self.win, style = 'On.TButton', text = '%s' % DataFolder, command = lambda: self.FindFile(self.parent))
-        self.SelectFilePath.grid(row=0,column=0,columnspan=4)
+        self.SelectFilePath.grid(row=0,column=0,columnspan=2)
 
-        self.NoSelectedPath = tk.Label(self, text = 'No File Path Selected', font = MEDIUM_FONT, fg = 'red')
+        self.NoSelectedPath = tk.Label(self.win, text = 'No File Path Selected', font = MEDIUM_FONT, fg = 'red')
         self.PathWarningExists = False               # tracks the existence of a warning label
 
         #--- File Handle Input ---#
         HandleLabel = tk.Label(self.win, text='Exported File Handle:', font=LARGE_FONT)
         HandleLabel.grid(row=4,column=0,columnspan=2)
         self.filehandle = ttk.Entry(self.win)
-        self.filehandle.insert(END, )
+        self.filehandle.insert(END, FileHandle)
         self.filehandle.grid(row=5,column=0,columnspan=2,pady=5)
 
         self.ElectrodeLabel = tk.Label(self.win, text='Select Electrodes:', font=LARGE_FONT)
@@ -4781,6 +4801,44 @@ class PostAnalysis(tk.Frame):
         CloseButton.grid(row=16,column=0,columnspan=2,pady=10)
 
 
+    def ElectrodeCurSelect(self, evt):
+
+        ###################################################
+        ## electrode_list: list; ints                    ##
+        ## electrode_dict: dict; {electrode: index}      ##
+        ## electrode_count: int                          ##
+        ###################################################
+
+        self.electrode_list = [self.ElectrodeCount.get(idx) for idx in self.ElectrodeCount.curselection()]
+        self.electrode_list = [int(electrode) for electrode in self.electrode_list]
+
+        if electrode_count is 0:
+            self.ElectrodeListExists = False
+            self.ElectrodeLabel['fg'] = 'red'
+
+        elif electrode_count is not 0:
+            self.ElectrodeListExists = True
+            self.ElectrodeLabel['fg'] = 'black'
+
+    #--- Frequency Selection ---#
+    def FrequencyCurSelect(self, evt):
+        global frequency_list, frequency_dict, LowFrequency, HighFrequency
+
+        self.frequency_list = [self.FrequencyList.get(idx) for idx in self.FrequencyList.curselection()]
+
+        if len(frequency_list) is not 0:
+
+            self.FrequencyListExists = True
+            self.FrequencyLabel['fg'] = 'black'
+
+            for var in frequency_list:
+                var = int(var)
+
+        elif len(frequency_list) is 0:
+            self.FrequencyListExists = False
+            self.FrequencyLabel['fg'] = 'red'
+
+
     def FindFile(self, parent):
         global FilePath, ExportPath, FoundFilePath, NoSelectedPath
 
@@ -4791,7 +4849,7 @@ class PostAnalysis(tk.Frame):
             FilePath = filedialog.askdirectory(parent = parent)
             FilePath = ''.join(FilePath + '/')
 
-
+            print(FilePath)
             ### Path for directory in which the    ###
             ### exported .txt file will be placed  ###
             ExportPath = FilePath.split('/')
@@ -4804,10 +4862,9 @@ class PostAnalysis(tk.Frame):
 
 
             del ExportPath[-1]
-            del ExportPath[-1]
             ExportPath = '/'.join(ExportPath)
             ExportPath = ''.join(ExportPath + '/')
-
+            print(ExportPath)
             ## Indicates that the user has selected a File Path ###
             FoundFilePath = True
 
@@ -4819,16 +4876,22 @@ class PostAnalysis(tk.Frame):
             FoundFilePath = False
             self.NoSelectedPath.grid(row=1,column=0,columnspan=4)
             self.PathWarningExists = True
+            self.SelectFilePath['style'] = 'Off.TButton'
+            self.SelectFilePath['text'] = ''
 
 
     def PostAnalysisDataExport(self):
+        global ExportFilePath
+
+        FileHandle = str(self.filehandle.get())
+        ExportFilePath = ''.join(ExportPath + FileHandle)
 
         post_analysis_export = TextFileExport(electrodes=self.electrode_list, frequencies=self.frequency_list)
         post_analysis_export.TxtFileNormalization(electrodes=self.electrode_list, frequencies=self.frequency_list)
 
 
     def _reset(self):
-        global HighAlreadyReset, LowAlreadyReset, AlreadyInitiated, PoisonPill, key, container
+        global HighAlreadyReset, LowAlreadyReset, AlreadyInitiated, PoisonPill, key, container, analysis_complete
 
         self.completion_value = 0
         analysis_complete = False
@@ -5025,19 +5088,22 @@ class TextFileExport():
     ###############################
     def __init__(self, electrodes=None, frequencies=None):
 
+        if electrodes is None:
+            self.electrode_list = electrode_list
+        else:
+            self.electrode_list = electrodes
+
+        self.electrode_count = len(self.electrode_list)
+
+        if frequencies is None:
+            self.frequency_list = frequency_list
+        else:
+            self.frequency_list = frequencies
+
+
+        self.TextFileHandle = ExportFilePath
+
         if method == 'Continuous Scan':
-            if electrodes is None:
-                self.electrode_list = electrode_list
-            else:
-                self.electrode_list = electrodes
-
-            if frequencies is None:
-                self.frequency_list = frequency_list
-            else:
-                self.frequency_list = frequencies
-
-            self.TextFileHandle = ExportFilePath
-
             TxtList = []
             TxtList.append('File')
             TxtList.append('Time(Hrs)')
@@ -5049,43 +5115,44 @@ class TextFileExport():
                     elif SelectedOptions == 'Area Under the Curve':
                         TxtList.append('AUC_E%d_%dHz' % (electrode, frequency))
 
-            for frequency in self.frequency_list:
-                if SelectedOptions == 'Peak Height Extraction':
-                    TxtList.append('Avg_PeakHeight_%dHz' % frequency)
-                elif SelectedOptions == 'Area Under the Curve':
-                    TxtList.append('Avg_AUC_%dHz' % frequency)
+            if self.electrode_count > 1:
+                for frequency in self.frequency_list:
+                    if SelectedOptions == 'Peak Height Extraction':
+                        TxtList.append('Avg_PeakHeight_%dHz' % frequency)
+                    elif SelectedOptions == 'Area Under the Curve':
+                        TxtList.append('Avg_AUC_%dHz' % frequency)
 
             for frequency in self.frequency_list:
                 for electrode in self.electrode_list:
                     TxtList.append('Norm_E%d_%dHz' % (electrode, frequency))
 
-            for frequency in self.frequency_list:
-                TxtList.append('Average_Norm_%dHz' % frequency)
+            if self.electrode_count > 1:
+                for frequency in self.frequency_list:
+                    TxtList.append('Average_Norm_%dHz' % frequency)
 
-            for frequency in self.frequency_list:
-                TxtList.append('SD_Norm_%dHz' % frequency)
+                for frequency in self.frequency_list:
+                    TxtList.append('SD_Norm_%dHz' % frequency)
 
             if len(self.frequency_list) > 1:
                 for electrode in self.electrode_list:
                     TxtList.append('NormalizedRatio_E%d' % electrode)
 
-                TxtList.append('NormalizedRatioAvg')
-                TxtList.append('NormalizedRatioSTD')
+                if self.electrode_count > 1:
+                    TxtList.append('NormalizedRatioAvg')
+                    TxtList.append('NormalizedRatioSTD')
 
                 for electrode in self.electrode_list:
                     TxtList.append('KDM_E%d' % electrode)
 
-                TxtList.append('AvgKDM')
-                TxtList.append('KDM_STD')
+                if self.electrode_count > 1:
+                    TxtList.append('AvgKDM')
+                    TxtList.append('KDM_STD')
 
             with open(self.TextFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
                 writer.writerow(TxtList)
 
         elif method == 'Frequency Map':
-
-            self.TextFileHandle = ExportFilePath
-            tracker = 0
 
             TxtList = []
             TxtList.append('Frequency(Hz)')
@@ -5099,10 +5166,11 @@ class TextFileExport():
                 TxtList.append('Charge_E%d(uC)' % (E_count))
                 E_count += 1
 
-            TxtList.append('Avg.PeakHeight(uA)')
-            TxtList.append('Standard_Deviation(uA)')
-            TxtList.append('Avg.Charge(uC)')
-            TxtList.append('Standard_Deviation(uC)')
+            if self.electrode_count > 1:
+                TxtList.append('Avg.PeakHeight(uA)')
+                TxtList.append('Standard_Deviation(uA)')
+                TxtList.append('Avg.Charge(uC)')
+                TxtList.append('Standard_Deviation(uC)')
 
             with open(self.TextFileHandle,'w+',encoding='utf-8', newline = '') as input:
                 writer = csv.writer(input, delimiter = ' ')
@@ -5124,12 +5192,13 @@ class TextFileExport():
                 list.append(data_list[num][count][index])
 
         #--- Avg. Peak Height ---#
-        for count in range(len(frequency_list)):
-            average = 0
-            for num in range(electrode_count):
-                average += data_list[num][count][index]
-            average = average/electrode_count
-            list.append(average)
+        if self.electrode_count > 1:
+            for count in range(len(frequency_list)):
+                average = 0
+                for num in range(electrode_count):
+                    average += data_list[num][count][index]
+                average = average/electrode_count
+                list.append(average)
 
 
         #--- Peak Height/AUC Data Normalization ---#
@@ -5142,32 +5211,34 @@ class TextFileExport():
 
 
         #--- Average normalized data across all electrodes for each frequency ---#
-        for count in range(len(frequency_list)):
-            NormalizedFrequencyCurrents = []
-            for num in range(electrode_count):
-                if frequency_list[count] == HighLowList['Low']:
-                    NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
-                else:
-                    NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+        if self.electrode_count > 1:
+            for count in range(len(frequency_list)):
+                NormalizedFrequencyCurrents = []
+                for num in range(electrode_count):
+                    if frequency_list[count] == HighLowList['Low']:
+                        NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
+                    else:
+                        NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
-            #-- calculate the average
-            average = 0     # start at 0
-            for item in NormalizedFrequencyCurrents:
-                average += item            # add every item
-            average = average/electrode_count
-            AverageNorm = sum(NormalizedFrequencyCurrents)/electrode_count
-            list.append(AverageNorm)
+                #-- calculate the average
+                average = 0     # start at 0
+                for item in NormalizedFrequencyCurrents:
+                    average += item            # add every item
+                average = average/electrode_count
+                AverageNorm = sum(NormalizedFrequencyCurrents)/electrode_count
+                list.append(AverageNorm)
 
         #--- Standard Deviation ---#
-        for count in range(len(frequency_list)):
-            NormalizedFrequencyCurrents = []
-            for num in range(electrode_count):
-                NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+        if self.electrode_count > 1:
+            for count in range(len(frequency_list)):
+                NormalizedFrequencyCurrents = []
+                for num in range(electrode_count):
+                    NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
-            AverageNorm = sum(NormalizedFrequencyCurrents)/electrode_count
-            STDList = [(X - AverageNorm)**2 for X in NormalizedFrequencyCurrents]
-            StandardDeviation = float(sqrt(sum(STDList)/(electrode_count - 1)))                      # standard deviation of a sample
-            list.append(StandardDeviation)
+                AverageNorm = sum(NormalizedFrequencyCurrents)/electrode_count
+                STDList = [(X - AverageNorm)**2 for X in NormalizedFrequencyCurrents]
+                StandardDeviation = float(sqrt(sum(STDList)/(electrode_count - 1)))                      # standard deviation of a sample
+                list.append(StandardDeviation)
 
         if len(frequency_list) > 1:
             #--- Append Normalized Ratiometric Data ---#
@@ -5177,12 +5248,13 @@ class TextFileExport():
                 list.append(normalized_ratiometric_data_list[num][index])
                 NormList.append(normalized_ratiometric_data_list[num][index])
 
-            NormAverage = sum(NormList)/electrode_count
-            list.append(NormAverage)
+            if self.electrode_count > 1:
+                NormAverage = sum(NormList)/electrode_count
+                list.append(NormAverage)
 
-            NormSTDlist = [(X - NormAverage)**2 for X in NormList]
-            NormStandardDeviation = sqrt(sum(NormSTDlist)/(electrode_count - 1))                     # standard deviation of a sample
-            list.append(NormStandardDeviation)
+                NormSTDlist = [(X - NormAverage)**2 for X in NormList]
+                NormStandardDeviation = sqrt(sum(NormSTDlist)/(electrode_count - 1))                     # standard deviation of a sample
+                list.append(NormStandardDeviation)
 
 
             #--- Append KDM ---#
@@ -5190,11 +5262,12 @@ class TextFileExport():
             for num in range(electrode_count):
                 list.append(KDM_list[num][index])
                 KDMList.append(KDM_list[num][index])
-            KDM_Average = sum(KDMList)/electrode_count
-            list.append(KDM_Average)
-            KDM_STD_list = [(X - KDM_Average)**2 for X in KDMList]
-            KDM_STD = sqrt(sum(KDM_STD_list)/(electrode_count - 1))
-            list.append(KDM_STD)
+            if self.electrode_count > 1:
+                KDM_Average = sum(KDMList)/electrode_count
+                list.append(KDM_Average)
+                KDM_STD_list = [(X - KDM_Average)**2 for X in KDMList]
+                KDM_STD = sqrt(sum(KDM_STD_list)/(electrode_count - 1))
+                list.append(KDM_STD)
 
         #--- Write the data into the .txt file ---#
         with open(self.TextFileHandle,'a',encoding='utf-8', newline = '') as input:
@@ -5215,7 +5288,6 @@ class TextFileExport():
     #################################################################
     def FrequencyMapExport(self, file, frequency):
 
-        print('\nFrequency Map Export')
         list = []
         index = file - 1
         try:
@@ -5229,29 +5301,38 @@ class TextFileExport():
                 list.append(data_list[num][count][index]/int(frequency))
 
             # Average Peak Height / AUC
-            value = 0
-            for num in range(electrode_count):
-                value += data_list[num][count][index]
-            average = value/electrode_count
-            list.append(average)
+            if self.electrode_count > 1:
+                value = 0
+                for num in range(electrode_count):
+                    value += data_list[num][count][index]
+                average = value/electrode_count
+                list.append(average)
 
-            # Standard Deviation of a Sample across all electrodes
-            # for Peak Height/AUC
-            charge_std_list = []
-            for num in range(electrode_count):
-                std_list.append(data_list[num][count][index])
+                # Standard Deviation of a Sample across all electrodes
+                # for Peak Height/AUC
 
-            std_list = [(value - average)**2 for value in std_list]
+                std_list = []
+                for num in range(electrode_count):
+                    std_list.append(data_list[num][count][index])
 
-            standard_deviation = sqrt(sum(std_list)/(electrode_count - 1))
-            list.append(standard_deviation)
+                std_list = [(value - average)**2 for value in std_list]
 
-            #-- Average Charge --#
-            avg_charge = average/int(frequency)
-            list.append(avg_charge)
+                standard_deviation = sqrt(sum(std_list)/(electrode_count - 1))
+                list.append(standard_deviation)
 
-            charge_standard_deviation = sqrt(sum([x/frequency for x in std_list])/(electrode_count - 1))
-            list.append(charge_standard_deviation)
+                #-- Average Charge --#
+                avg_charge = average/int(frequency)
+                list.append(avg_charge)
+
+                #-- Charge STD --#
+                std_list = []
+                for num in range(electrode_count):
+                    std_list.append(data_list[num][count][index])
+
+                std_list = [x/int(frequency) for x in std_list]
+                std_list = [(value - avg_charge)**2 for value in std_list]
+                charge_standard_deviation = sqrt(sum(std_list)/(electrode_count - 1))
+                list.append(charge_standard_deviation)
 
 
             #--- Write the data into the .txt file ---#
@@ -5280,17 +5361,6 @@ class TextFileExport():
     def TxtFileNormalization(self, electrodes=None, frequencies=None):
         TxtList = []
 
-        if electrodes is None:
-            self.electrode_list = electrode_list
-        else:
-            self.electrode_list = electrodes
-
-        if frequencies is None:
-            self.frequency_list = frequency_list
-        else:
-            self.frequency_list = frequencies
-
-        self.electrode_count = len(self.electrode_list)
 
         try:
             #--- reinitialize the .txt file ---#
@@ -5317,14 +5387,15 @@ class TextFileExport():
                         list.append(data_list[num][count][index])
 
                 #--- Avg. Peak Height ---#
-                for frequency in self.frequency_list:
-                    count = frequency_dict[frequency]
-                    average = 0
-                    for electrode in self.electrode_list:
-                        num = electrode_dict[electrode]
-                        average += data_list[num][count][index]
-                    average = average/self.electrode_count
-                    list.append(average)
+                if self.electrode_count > 1:
+                    for frequency in self.frequency_list:
+                        count = frequency_dict[frequency]
+                        average = 0
+                        for electrode in self.electrode_list:
+                            num = electrode_dict[electrode]
+                            average += data_list[num][count][index]
+                        average = average/self.electrode_count
+                        list.append(average)
 
 
                 #--- Data Normalization ---#
@@ -5340,37 +5411,38 @@ class TextFileExport():
                             list.append(normalized_data_list[num][count][index])
 
 
-                #--- Data Normalization ---#
-                for frequency in self.frequency_list:
-                    count = frequency_dict[frequency]
-                    NormalizedFrequencyCurrents = []
-                    for electrode in self.electrode_list:
-                        num = electrode_dict[electrode]
+                #--- Average Data Normalization ---#
+                if self.electrode_count > 1:
+                    for frequency in self.frequency_list:
+                        count = frequency_dict[frequency]
+                        NormalizedFrequencyCurrents = []
+                        for electrode in self.electrode_list:
+                            num = electrode_dict[electrode]
 
-                        if frequency == HighLowList['Low']:
-                            NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
-                        else:
-                            NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+                            if frequency == HighLowList['Low']:
+                                NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
+                            else:
+                                NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
-                    AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
-                    list.append(AverageNorm)
+                        AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
+                        list.append(AverageNorm)
 
-                #--- Standard Deviation between electrodes ---#
-                for frequency in self.frequency_list:
-                    count = frequency_dict[frequency]
-                    NormalizedFrequencyCurrents = []
-                    for electrode in self.electrode_list:
-                        num = electrode_dict[electrode]
+                    #--- Standard Deviation between electrodes ---#
+                    for frequency in self.frequency_list:
+                        count = frequency_dict[frequency]
+                        NormalizedFrequencyCurrents = []
+                        for electrode in self.electrode_list:
+                            num = electrode_dict[electrode]
 
-                        if frequency == HighLowList['Low']:
-                            NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
-                        else:
-                            NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
+                            if frequency == HighLowList['Low']:
+                                NormalizedFrequencyCurrents.append(offset_normalized_data_list[num][index])
+                            else:
+                                NormalizedFrequencyCurrents.append(normalized_data_list[num][count][index])
 
-                    AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
-                    STDList = [(X - AverageNorm)**2 for X in NormalizedFrequencyCurrents]
-                    StandardDeviation = sqrt(sum(STDList)/(self.electrode_count - 1))
-                    list.append(StandardDeviation)
+                        AverageNorm = sum(NormalizedFrequencyCurrents)/self.electrode_count
+                        STDList = [(X - AverageNorm)**2 for X in NormalizedFrequencyCurrents]
+                        StandardDeviation = sqrt(sum(STDList)/(self.electrode_count - 1))
+                        list.append(StandardDeviation)
 
                 if len(self.frequency_list) > 1:
 
@@ -5382,12 +5454,13 @@ class TextFileExport():
                         list.append(normalized_ratiometric_data_list[num][index])
                         NormList.append(normalized_ratiometric_data_list[num][index])
 
-                    NormAverage = sum(NormList)/self.electrode_count
-                    list.append(NormAverage)
+                    if self.electrode_count > 1:
+                        NormAverage = sum(NormList)/self.electrode_count
+                        list.append(NormAverage)
 
-                    NormSTDlist = [(X - NormAverage)**2 for X in NormList]
-                    NormStandardDeviation = sqrt(sum(NormSTDlist)/(self.electrode_count - 1))                     # standard deviation of a sample
-                    list.append(NormStandardDeviation)
+                        NormSTDlist = [(X - NormAverage)**2 for X in NormList]
+                        NormStandardDeviation = sqrt(sum(NormSTDlist)/(self.electrode_count - 1))                     # standard deviation of a sample
+                        list.append(NormStandardDeviation)
 
                     #--- Append KDM ---#
                     KDMList = []
@@ -5397,12 +5470,13 @@ class TextFileExport():
                         list.append(KDM_list[num][index])
                         KDMList.append(KDM_list[num][index])
 
-                    KDM_Average = sum(KDMList)/self.electrode_count
-                    list.append(KDM_Average)
+                    if self.electrode_count > 1:
+                        KDM_Average = sum(KDMList)/self.electrode_count
+                        list.append(KDM_Average)
 
-                    KDM_STD_list = [(X - KDM_Average)**2 for X in KDMList]
-                    KDM_STD = sqrt(sum(KDM_STD_list)/(self.electrode_count - 1))
-                    list.append(KDM_STD)
+                        KDM_STD_list = [(X - KDM_Average)**2 for X in KDMList]
+                        KDM_STD = sqrt(sum(KDM_STD_list)/(self.electrode_count - 1))
+                        list.append(KDM_STD)
 
                 #--- Write the data into the .txt file ---#
                 with open(self.TextFileHandle,'a',encoding='utf-8', newline = '') as input:
