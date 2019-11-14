@@ -1,9 +1,13 @@
 # SACMES
+
+All updates for the Standard Operating Procedure (SOP) can be viewed here: https://www.dropbox.com/home/NetzLab%20SACMES%20SOP
+
 This repository contains the master script for the SACMES program and all updates. 
 
-SACMES stands for Simultaneous Analysis and Control of Electrochemical Systems.
+SACMES stands for Simultaneous Analysis and Control of Electrochemical Systems. Each script analyzes data from specific electrochemical techniques in real time and exports the data into space delimited txt files. Each script runs off of an multithreaded animation module known as ElectrochemicalAnimation and can analyze any number of electrodes simultaneously.
 
-Each script analyzes data from specific electrochemical techniques in real time and exports the data into space delimited txt files. Each script runs off of an multithreaded animation module known as ElectrochemicalAnimation and can analyze any number of electrodes simultaneously.
+If you would like to use the SACMES program as it is described in the ACS Analytical Chemistry article "Open Source Software for the Real-Time Control, Processing, and Visualization of High-Volume Electrochemical Data" by Curtis, et al. use the scripts within the "Published Versions of SACMES" folder.
+
 
 # SACMES_SWV.py #
 SACMES_SWV analysis data from Square-Wave Voltammograms and offers real time control of data analysis.
