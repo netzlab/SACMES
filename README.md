@@ -1,6 +1,6 @@
 # SACMES
 
-All updates for the Standard Operating Procedure (SOP) can be viewed here: https://www.dropbox.com/preview/NetzLab%20SACMES%20SOP/2019_11_13%20SACMES%20SOP.docx?role=personal
+All updates for the Standard Operating Procedure (SOP) can be viewed here: https://www.dropbox.com/sh/5s7qxgzpmx6pnq4/AACC3I0DrIL22cUM8fk1RC01a?dl=0
 
 This repository contains the master script for the SACMES program and all updates. 
 
