@@ -3841,7 +3841,7 @@ class ElectrochemicalAnimation():
             frequency = frequency_list[self.count]
             self.frequency_axis.append(int(frequency))
 
-            Peak_Height = (data/frequency) * 100000
+            charge = (Peak_Height/frequency) * 100000
             self.charge_axis.append(Peak_Height/frequency)
 
 
