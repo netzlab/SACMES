@@ -194,17 +194,17 @@ def ReadData(myfile, electrode):
         #####################
 
         #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
+        with open(myfile,'r',encoding='utf-16') as mydata:
             variables = len(mydata.readlines())
             potentials = ['hold']*variables
-
             ### key: potential; value: current ##
             data_dict = {}
 
             currents = [0]*variables
 
+
         #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-8') as mydata:
+        with open(myfile,'r',encoding='utf-16') as mydata:
             list_num = 0
             for line in mydata:
                 check_split_list = line.split(delimiter)
@@ -221,7 +221,6 @@ def ReadData(myfile, electrode):
                         del check_split_list[0]
                     else:
                         break
-
                 check_split = check_split_list[0]
                 check_split = check_split.replace(',','')
                 try:
@@ -229,7 +228,6 @@ def ReadData(myfile, electrode):
                     check_split = True
                 except:
                     check_split = False
-
                 if check_split:
                     #---Currents---#
                     current_value = check_split_list[list_val]                      # list_val is the index value of the given electrode
@@ -245,7 +243,6 @@ def ReadData(myfile, electrode):
                     potentials[list_num] = potential_value
                     data_dict.setdefault(potential_value, []).append(current_value)
                     list_num = list_num + 1
-
 
         ### if there are 0's in the list (if the preallocation added to many)
         ### then remove them
@@ -337,7 +334,7 @@ class MainWindow(tk.Tk):
         #################
         editmenu = Menu(menubar, tearoff=0)
         editmenu.add_separator()
-        editmenu.add_command(label="Adjust Current Extraction", command=lambda: self.extraction_adjustment_frame())
+        editmenu.add_command(label="Customize File Format", command=lambda: self.extraction_adjustment_frame())
         self.delimiter_value = IntVar()
         self.delimiter_value.set(1)
 
@@ -351,7 +348,7 @@ class MainWindow(tk.Tk):
         global delimiter, extension
 
         win = tk.Toplevel()
-        win.wm_title("Data Extraction Settings")
+        win.wm_title("Customize File Format")
 
         #-- new frame --#
         row_value = 0
@@ -3844,7 +3841,7 @@ class ElectrochemicalAnimation():
             frequency = frequency_list[self.count]
             self.frequency_axis.append(int(frequency))
 
-            charge = (data/frequency) * 100000
+            Peak_Height = (data/frequency) * 100000
             self.charge_axis.append(Peak_Height/frequency)
 
 
