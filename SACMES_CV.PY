@@ -1486,6 +1486,7 @@ class SetupFrame(tk.Frame):
 
             return False
 
+    ### Only for data setup; blit setup frame
     def blit_data(self, artists):
 
         axes = {a.axes for a in artists}

@@ -192,19 +192,33 @@ def ReadData(myfile, electrode):
         #####################
         ### Read the data ###
         #####################
+        try:
+            #---Preallocate Potential and Current lists---#
+            with open(myfile,'r',encoding='utf-16') as mydata:
+                encoding = 'utf-16'
 
-        #---Preallocate Potential and Current lists---#
-        with open(myfile,'r',encoding='utf-16') as mydata:
-            variables = len(mydata.readlines())
-            potentials = ['hold']*variables
-            ### key: potential; value: current ##
-            data_dict = {}
+                variables = len(mydata.readlines())
+                potentials = ['hold']*variables
+                ### key: potential; value: current ##
+                data_dict = {}
 
-            currents = [0]*variables
+                currents = [0]*variables
 
+
+        except:
+            #---Preallocate Potential and Current lists---#
+            with open(myfile,'r',encoding='utf-8') as mydata:
+                encoding = 'utf-8'
+
+                variables = len(mydata.readlines())
+                potentials = ['hold']*variables
+                ### key: potential; value: current ##
+                data_dict = {}
+
+                currents = [0]*variables
 
         #---Extract data and dump into lists---#
-        with open(myfile,'r',encoding='utf-16') as mydata:
+        with open(myfile,'r',encoding=encoding) as mydata:
             list_num = 0
             for line in mydata:
                 check_split_list = line.split(delimiter)
