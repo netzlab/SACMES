@@ -145,37 +145,45 @@ SMALL_FONT = ('Verdana', 8)
 ### Retrieve the file name ###
 ##############################
 def _retrieve_file(file, electrode, frequency):
+    try:
+        if method == 'Continuous Scan':
 
-    if method == 'Continuous Scan':
+            if e_var == 'single':
+                filename = '%s%dHz_%d%s' % (handle_variable, frequency, file,extension)
+                filename2 = '%s%dHz__%d%s' % (handle_variable, frequency, file,extension)
+                filename3 = '%s%dHz_#%d%s' % (handle_variable, frequency, file,extension)
+                filename4 = '%s%dHz__#%d%s' % (handle_variable, frequency, file,extension)
 
-        if e_var == 'single':
-            filename = '%s%dHz_%d%s' % (handle_variable, frequency, file,extension)
-            filename2 = '%s%dHz__%d%s' % (handle_variable, frequency, file,extension)
+            elif e_var == 'multiple':
+                filename = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file,extension)
+                filename2 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file,extension)
+                filename3 = 'E%s_%s%sHz_#%d%s' % (electrode,handle_variable,frequency,file,extension)
+                filename4 = 'E%s_%s%sHz__#%d%s' % (electrode,handle_variable,frequency,file,extension)
 
-        elif e_var == 'multiple':
-            filename = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file,extension)
-            filename2 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file,extension)
+            return filename, filename2, filename3, filename4
 
-        return filename, filename2
+        elif method == 'Frequency Map':
 
-    elif method == 'Frequency Map':
-
-        if e_var == 'single':
-            filename = '%s%dHz%s' % (handle_variable, frequency, extension)
-            filename2 = '%s%dHz_%s' % (handle_variable, frequency, extension)
-            filename3 = '%s%dHz_%d%s' % (handle_variable, frequency, file, extension)
-            filename4 = '%s%dHz__%d%s' % (handle_variable, frequency, file, extension)
-
-
-        elif e_var == 'multiple':
-            filename = 'E%s_%s%sHz%s' % (electrode,handle_variable,frequency, extension)
-            filename2 = 'E%s_%s%sHz_%s' % (electrode,handle_variable,frequency, extension)
-            filename3 = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file, extension)
-            filename4 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file, extension)
-
-        return filename, filename2, filename3, filename4
+            if e_var == 'single':
+                filename = '%s%dHz%s' % (handle_variable, frequency, extension)
+                filename2 = '%s%dHz_%s' % (handle_variable, frequency, extension)
+                filename3 = '%s%dHz_%d%s' % (handle_variable, frequency, file, extension)
+                filename4 = '%s%dHz__%d%s' % (handle_variable, frequency, file, extension)
+                filename5 = '%s%dHz_#%d%s' % (handle_variable, frequency, file, extension)
+                filename6 = '%s%dHz__#%d%s' % (handle_variable, frequency, file, extension)
 
 
+            elif e_var == 'multiple':
+                filename = 'E%s_%s%sHz%s' % (electrode,handle_variable,frequency, extension)
+                filename2 = 'E%s_%s%sHz_%s' % (electrode,handle_variable,frequency, extension)
+                filename3 = 'E%s_%s%sHz_%d%s' % (electrode,handle_variable,frequency,file, extension)
+                filename4 = 'E%s_%s%sHz__%d%s' % (electrode,handle_variable,frequency,file, extension)
+                filename5 = 'E%s_%s%sHz_#%d%s' % (electrode,handle_variable,frequency,file, extension)
+                filename6 = 'E%s_%s%sHz__#%d%s' % (electrode,handle_variable,frequency,file, extension)
+
+            return filename, filename2, filename3, filename4, filename5, filename6
+    except:
+        print('\nError in retrieve_file\n')
 
 def ReadData(myfile, electrode):
 
@@ -281,14 +289,16 @@ def ReadData(myfile, electrode):
 ### Retrieve the column index value ###
 #######################################
 def _get_listval(electrode):
+    try:
+        if e_var == 'single':
+            list_val = current_column_index + (electrode-1)*spacing_index
 
-    if e_var == 'single':
-        list_val = current_column_index + (electrode-1)*spacing_index
+        elif e_var == 'multiple':
+            list_val = current_column_index
 
-    elif e_var == 'multiple':
-        list_val = current_column_index
-
-    return list_val
+            return list_val
+    except:
+        print('\nError in _get_listval\n')
 
 #---------------------------------------------------------------------------------------------------#
 #---------------------------------------------------------------------------------------------------#
@@ -1229,24 +1239,34 @@ class CheckPoint():
         self.electrode = electrode_list[self.num]
 
         if not self.StopSearch:
+
             if method == 'Continuous Scan':
-
-
                 for frequency in frequency_list:
 
-                    filename, filename2 = _retrieve_file(1,self.electrode,frequency)
+                    filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
 
                     myfile = mypath + filename               ### path of your file
-                    myfile2 = mypath + filename2               ### path of your file
+                    myfile2 = mypath + filename2
+                    myfile3 = mypath + filename3
+                    myfile4 = mypath + filename4
 
                     try:
-                        mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                        ### retrieves the size of the file in bytes
+                        mydata_bytes = os.path.getsize(myfile)
                     except:
                         try:
-                            mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                            mydata_bytes = os.path.getsize(myfile2)
                             myfile = myfile2
                         except:
-                            mydata_bytes = 1
+                            try:
+                                mydata_bytes = os.path.getsize(myfile3)
+                                myfile = myfile3
+                            except:
+                                try:
+                                    mydata_bytes = os.path.getsize(myfile4)
+                                    myfile = myfile4
+                                except:
+                                    mydata_bytes = 1
 
 
                     if mydata_bytes > 1000:
@@ -1286,34 +1306,40 @@ class CheckPoint():
 
                 frequency = frequency_list[0]
 
-                filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
+                filename, filename2, filename3, filename4, filename5, filename6 = _retrieve_file(1,self.electrode,frequency)
 
                 myfile = mypath + filename               ### path of your file
-                myfile2 = mypath + filename2               ### path of your file
-                myfile3 = mypath + filename3               ### path of your file
-                myfile4 = mypath + filename4               ### path of your file
+                myfile2 = mypath + filename2
+                myfile3 = mypath + filename3
+                myfile4 = mypath + filename4
+                myfile5 = mypath + filename5
+                myfile6 = mypath + filename6
 
                 try:
-                    mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-                    print(myfile)
+                     ### retrieves the size of the file in bytes
+                    mydata_bytes = os.path.getsize(myfile)
                 except:
                     try:
-                        mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                        mydata_bytes = os.path.getsize(myfile2)
                         myfile = myfile2
-                        print(myfile)
                     except:
                         try:
-                            mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                            mydata_bytes = os.path.getsize(myfile3)
                             myfile = myfile3
-                            print(myfile)
                         except:
                             try:
-                                mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                                mydata_bytes = os.path.getsize(myfile4)
                                 myfile = myfile4
-                                print(myfile)
                             except:
-                                mydata_bytes = 1
-
+                                try:
+                                    mydata_bytes = os.path.getsize(myfile5)
+                                    myfile = myfile5
+                                except:
+                                    try:
+                                        mydata_bytes = os.path.getsize(myfile6)
+                                        myfile = myfile6
+                                    except:
+                                        mydata_bytes = 1
 
                 if mydata_bytes > 1000:
 
@@ -2685,38 +2711,44 @@ class InitializeContinuousCanvas():
     #####################################################################################
     ### Initalize Y Limits of each figure depending on the y values of the first file ###
     #####################################################################################
-    def InitializeSubplots(self,ax,freq,electrode,subplot_count):
+    def InitializeSubplots(self,ax,frequency,electrode,subplot_count):
 
         print('Initialize Subplots: Continuous Scan')
 
-        if e_var == 'single':
-            self.list_val = current_column_index + (electrode-1)*spacing_index
+        self.list_val = _get_listval(electrode)
 
-        elif e_var == 'multiple':
-            self.list_val = current_column_index
-
-        freq = int(freq)
+        frequency = int(frequency)
 
         try:
 
-            filename, filename2 = _retrieve_file(1,electrode,freq)
+            filename, filename2, filename3, filename4 = _retrieve_file(1,electrode,frequency)
 
             myfile = mypath + filename               ### path of your file
-            myfile2 = mypath + filename2               ### path of your file
+            myfile2 = mypath + filename2
+            myfile3 = mypath + filename3
+            myfile4 = mypath + filename4
 
             try:
-                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-
+                ### retrieves the size of the file in bytes
+                mydata_bytes = os.path.getsize(myfile)
             except:
                 try:
-                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    mydata_bytes = os.path.getsize(myfile2)
                     myfile = myfile2
                 except:
-                    mydata_bytes = 1
+                    try:
+                        mydata_bytes = os.path.getsize(myfile3)
+                        myfile = myfile3
+                    except:
+                        try:
+                            mydata_bytes = os.path.getsize(myfile4)
+                            myfile = myfile4
+                        except:
+                            mydata_bytes = 1
 
             if mydata_bytes > 1000:
                 print('Found File %s' % myfile)
-                self.RunInitialization(myfile,ax,subplot_count, electrode, freq)
+                self.RunInitialization(myfile,ax,subplot_count, electrode, frequency)
 
             else:
                 return False
@@ -2725,10 +2757,10 @@ class InitializeContinuousCanvas():
         except:
             print('could not find file for electrode %d' % electrode)
             #--- If search time has not met the search limit keep searching ---#
-            root.after(1000, self.InitializeSubplots, ax, freq, electrode, subplot_count)
+            root.after(1000, self.InitializeSubplots, ax, frequency, electrode, subplot_count)
 
 
-    def RunInitialization(self, myfile, ax, subplot_count, electrode, freq):
+    def RunInitialization(self, myfile, ax, subplot_count, electrode, frequency):
         global high_xstart, high_xend, low_xstart, low_xend
 
         try:
@@ -2751,7 +2783,7 @@ class InitializeContinuousCanvas():
             ### Get the high and low potentials ###
             #######################################
 
-            if int(freq) > cutoff_frequency:
+            if int(frequency) > cutoff_frequency:
 
                 if not HighAlreadyReset:
                     high_xstart = max(potentials)
@@ -2760,7 +2792,8 @@ class InitializeContinuousCanvas():
                 #-- set the local variables to the global ---#
                 xend = high_xend
                 xstart = high_xstart
-            elif int(freq) <= cutoff_frequency:
+
+            elif int(frequency) <= cutoff_frequency:
 
                 if not LowAlreadyReset:
                     low_xstart = max(potentials)
@@ -3037,36 +3070,46 @@ class InitializeFrequencyMapCanvas():
     #####################################################################################
     def InitializeSubplots(self,ax,electrode):
 
-        print('Initialize Subplots: Frequency Map')
-
         self.list_val = _get_listval(electrode)
+        print(self.list_val)
 
         try:
-            print('Initialize: Electrode %s' % str(electrode))
             frequency = frequency_list[0]
-            filename, filename2, filename3, filename4 = _retrieve_file(1,electrode,frequency)
+            print(frequency)
+            filename, filename2, filename3, filename4, filename5, filename6 = _retrieve_file(1,electrode,frequency)
 
             myfile = mypath + filename               ### path of your file
-            myfile2 = mypath + filename2               ### path of your file
-            myfile3 = mypath + filename3               ### path of your file
-            myfile4 = mypath + filename4               ### path of your file
+            myfile2 = mypath + filename2
+            myfile3 = mypath + filename3
+            myfile4 = mypath + filename4
+            myfile5 = mypath + filename5
+            myfile6 = mypath + filename6
+            print(myfile)
             try:
-                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                ### retrieves the size of the file in bytes
+                mydata_bytes = os.path.getsize(myfile)
             except:
                 try:
-                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    mydata_bytes = os.path.getsize(myfile2)
                     myfile = myfile2
                 except:
                     try:
-                        mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                        mydata_bytes = os.path.getsize(myfile3)
                         myfile = myfile3
                     except:
                         try:
-                            mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                            mydata_bytes = os.path.getsize(myfile4)
                             myfile = myfile4
                         except:
-                            mydata_bytes = 1
-
+                            try:
+                                mydata_bytes = os.path.getsize(myfile5)
+                                myfile = myfile5
+                            except:
+                                try:
+                                    mydata_bytes = os.path.getsize(myfile6)
+                                    myfile = myfile6
+                                except:
+                                    mydata_bytes = 1
 
             if mydata_bytes > 1000:
                 print('Found File %s' % myfile)
@@ -3388,15 +3431,15 @@ class ElectrochemicalAnimation():
         ### Resize raw and normalized data plots ###
         ############################################
         fig, ax = figures[self.num]
-        for num in range(len(frequency_list)):
+        for count in range(len(frequency_list)):
 
             if XaxisOptions == 'Experiment Time':
-                ax[1,num].set_xlim(0,(self.resize_limit*SampleRate)/3600+(SampleRate/7200))
-                ax[2,num].set_xlim(0,(self.resize_limit*SampleRate)/3600+(SampleRate/7200))
+                ax[1,count].set_xlim(0,(self.resize_limit*SampleRate)/3600+(SampleRate/7200))
+                ax[2,count].set_xlim(0,(self.resize_limit*SampleRate)/3600+(SampleRate/7200))
 
             elif XaxisOptions == 'File Number':
-                ax[1,num].set_xlim(0,self.resize_limit+0.1)
-                ax[2,num].set_xlim(0,self.resize_limit+0.1)
+                ax[1,count].set_xlim(0,self.resize_limit+0.1)
+                ax[2,count].set_xlim(0,self.resize_limit+0.1)
 
         ##################################
         ### Readjust Ratiometric Plots ###
@@ -3537,53 +3580,74 @@ class ElectrochemicalAnimation():
         if method == 'Continuous Scan':
             self.electrode = electrode_list[self.num]
 
-            filename, filename2 = _retrieve_file(self.file,self.electrode,frequency)
+            filename, filename2, filename3, filename4 = _retrieve_file(self.file,self.electrode,frequency)
 
-            myfile = mypath + filename               ### path of your file
-            myfile2 = mypath + filename2               ### path of your file
+            ### path of your file
+            myfile = mypath + filename
+            myfile2 = mypath + filename2
+            myfile3 = mypath + filename3
+            myfile4 = mypath + filename4
 
             try:
-                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
-
+                ### retrieves the size of the file in bytes
+                mydata_bytes = os.path.getsize(myfile)
             except:
                 try:
-                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    mydata_bytes = os.path.getsize(myfile2)
                     myfile = myfile2
                 except:
-                    mydata_bytes = 1
+                    try:
+                        mydata_bytes = os.path.getsize(myfile3)
+                        myfile = myfile3
+                    except:
+                        try:
+                            mydata_bytes = os.path.getsize(myfile4)
+                            myfile = myfile4
+                        except:
+                            mydata_bytes = 1
 
 
         elif method == 'Frequency Map':
 
-            filename, filename2, filename3, filename4 = _retrieve_file(1,self.electrode,frequency)
+            filename, filename2, filename3, filename4, filename5, filename6 = _retrieve_file(self.file,self.electrode,frequency)
 
             myfile = mypath + filename               ### path of your file
-            myfile2 = mypath + filename2               ### path of your file
-            myfile3 = mypath + filename3               ### path of your file
-            myfile4 = mypath + filename4               ### path of your file
+            myfile2 = mypath + filename2
+            myfile3 = mypath + filename3
+            myfile4 = mypath + filename4
+            myfile5 = mypath + filename5
+            myfile6 = mypath + filename6
 
             try:
-                mydata_bytes = os.path.getsize(myfile)    ### retrieves the size of the file in bytes
+                 ### retrieves the size of the file in bytes
+                mydata_bytes = os.path.getsize(myfile)
             except:
                 try:
-                    mydata_bytes = os.path.getsize(myfile2)    ### retrieves the size of the file in bytes
+                    mydata_bytes = os.path.getsize(myfile2)
                     myfile = myfile2
                     filename = filename2
-                    print(myfile)
                 except:
                     try:
-                        mydata_bytes = os.path.getsize(myfile3)    ### retrieves the size of the file in bytes
+                        mydata_bytes = os.path.getsize(myfile3)
                         myfile = myfile3
                         filename = filename3
-                        print(myfile)
                     except:
                         try:
-                            mydata_bytes = os.path.getsize(myfile4)    ### retrieves the size of the file in bytes
+                            mydata_bytes = os.path.getsize(myfile4)
                             myfile = myfile4
                             filename = filename4
-                            print(myfile)
                         except:
-                            mydata_bytes = 1
+                            try:
+                                mydata_bytes = os.path.getsize(myfile5)
+                                myfile = myfile5
+                                filename = filename5
+                            except:
+                                try:
+                                    mydata_bytes = os.path.getsize(myfile6)
+                                    myfile = myfile6
+                                    filename = filename6
+                                except:
+                                    mydata_bytes = 1
 
 
         if mydata_bytes > 1000:
@@ -3654,7 +3718,7 @@ class ElectrochemicalAnimation():
                 ### erased when there are no more files to be visualized ###
                 ############################################################
                 try:
-                    self._redraw_figures()
+                    self._redraw_figures(self.resize_limit)
                 except:
                     print('\nCould not redraw figure\n')
 
