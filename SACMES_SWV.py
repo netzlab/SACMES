@@ -186,6 +186,7 @@ def _retrieve_file(file, electrode, frequency):
         print('\nError in retrieve_file\n')
 
 def ReadData(myfile, electrode):
+    global encoding
 
     try:
         ###############################################################
@@ -3071,11 +3072,9 @@ class InitializeFrequencyMapCanvas():
     def InitializeSubplots(self,ax,electrode):
 
         self.list_val = _get_listval(electrode)
-        print(self.list_val)
 
         try:
             frequency = frequency_list[0]
-            print(frequency)
             filename, filename2, filename3, filename4, filename5, filename6 = _retrieve_file(1,electrode,frequency)
 
             myfile = mypath + filename               ### path of your file
@@ -3084,7 +3083,6 @@ class InitializeFrequencyMapCanvas():
             myfile4 = mypath + filename4
             myfile5 = mypath + filename5
             myfile6 = mypath + filename6
-            print(myfile)
             try:
                 ### retrieves the size of the file in bytes
                 mydata_bytes = os.path.getsize(myfile)
@@ -3569,7 +3567,6 @@ class ElectrochemicalAnimation():
     ## callback that is called every 'interval' ms ##
     def _step(self):
         global RatioMetricCheck, file_list, sample_list, analysis_complete
-
         if self.file not in self.file_list:
             self.file_list.append(self.file)
             self.sample_list.append((len(self.file_list)*SampleRate)/3600)
@@ -3678,7 +3675,6 @@ class ElectrochemicalAnimation():
 
     def _run_analysis(self,myfile,frequency):
 
-        print('%srun_analysis' % self.spacer)
         #######################################################
         ### Perform the next iteration of the data analysis ###
         #######################################################
@@ -3718,7 +3714,7 @@ class ElectrochemicalAnimation():
                 ### erased when there are no more files to be visualized ###
                 ############################################################
                 try:
-                    self._redraw_figures(self.resize_limit)
+                    self._redraw_figures()
                 except:
                     print('\nCould not redraw figure\n')
 
@@ -3757,7 +3753,6 @@ class ElectrochemicalAnimation():
             else:
                 self.file += 1
                 self.index += 1
-                print('%smoving onto file %s\n' % (self.spacer,str(self.file)))
                 self.count = 0
                 root.after(1, self._step)
 
@@ -3768,7 +3763,6 @@ class ElectrochemicalAnimation():
         ### for this file, move onto the next frequency        ###
         ##########################################################
         elif self.count < self.frequency_limit:
-            print('%sNext Frequency' % self.spacer)
             self.count += 1
 
             root.after(1, self._step)
@@ -3988,7 +3982,7 @@ class ElectrochemicalAnimation():
                 ##########################################################
                 elif InjectionPoint is not None:
 
-                    if file >= InjectionPoint:
+                    if self.file >= InjectionPoint:
                         InjectionIndex = InjectionPoint - 1
 
                         ####################################################
@@ -4002,10 +3996,10 @@ class ElectrochemicalAnimation():
                         plots[4].set_data(Xaxis[:InjectionIndex],NormalizedDataList[:InjectionIndex])     # Norm Data before injection point
                         plots[5].set_data(Xaxis[InjectionIndex:],NormalizedDataList[InjectionIndex:])     # Norm Data before injection point
 
-                    elif InjectionPoint > file:
+                    elif InjectionPoint > self.file:
                         plots[0].set_data(potentials,smooth_currents)               # Smooth current voltammogram
                         plots[1].set_data(adjusted_potentials, regression)
-                        plots[2].set_data(Xaxis,data_list)                          # Raw Data
+                        plots[2].set_data(Xaxis,data)                          # Raw Data
                         plots[3].set_data([],[])                                    # Clear the injection artist
                         plots[4].set_data(Xaxis,NormalizedDataList)                  # Norm Data
                         plots[5].set_data([],[])                                    # Clear the injection artist
@@ -4925,7 +4919,6 @@ class PostAnalysis(tk.Frame):
             FilePath = filedialog.askdirectory(parent = parent)
             FilePath = ''.join(FilePath + '/')
 
-            print(FilePath)
             ### Path for directory in which the    ###
             ### exported .txt file will be placed  ###
             ExportPath = FilePath.split('/')
@@ -4940,7 +4933,6 @@ class PostAnalysis(tk.Frame):
             del ExportPath[-1]
             ExportPath = '/'.join(ExportPath)
             ExportPath = ''.join(ExportPath + '/')
-            print(ExportPath)
             ## Indicates that the user has selected a File Path ###
             FoundFilePath = True
 
@@ -5110,7 +5102,6 @@ class Track():
                 if self.track_list[index] == electrode_count:
 
                     if SaveVar:
-                        print('Exporting Frequency Map Data')
                         text_file_export.FrequencyMapExport(file,frequency)
 
 
