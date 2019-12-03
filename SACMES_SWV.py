@@ -373,6 +373,7 @@ class MainWindow(tk.Tk):
         self.threethousand = self.byte_menu.add_command(label="✓ 3000", command = lambda: self.set_bytes('3000'))
         self.fourthousand = self.byte_menu.add_command(label = "   4000", command = lambda: self.set_bytes('4000'))
         self.fivethousand = self.byte_menu.add_command(label = "   5000", command = lambda: self.set_bytes('5000'))
+        self.fivethousand = self.byte_menu.add_command(label = "   7500", command = lambda: self.set_bytes('7500'))
 
         editmenu.add_cascade(label='Byte Limit', menu=self.byte_menu)
 
@@ -493,30 +494,43 @@ class MainWindow(tk.Tk):
             self.byte_menu.entryconfigure(2, label='3000')
             self.byte_menu.entryconfigure(3, label='4000')
             self.byte_menu.entryconfigure(4,label='5000')
+            self.byte_menu.entryconfigure(5,label='7500')
         elif bytes == '2000':
             self.byte_menu.entryconfigure(0, label='1000')
             self.byte_menu.entryconfigure(1, label='✓ 2000')
             self.byte_menu.entryconfigure(2, label='3000')
             self.byte_menu.entryconfigure(3, label='4000')
             self.byte_menu.entryconfigure(4,label='5000')
+            self.byte_menu.entryconfigure(5,label='7500')
         elif bytes == '3000':
             self.byte_menu.entryconfigure(0, label='1000')
             self.byte_menu.entryconfigure(1, label='2000')
             self.byte_menu.entryconfigure(2, label='✓ 3000')
             self.byte_menu.entryconfigure(3, label='4000')
             self.byte_menu.entryconfigure(4,label='5000')
+            self.byte_menu.entryconfigure(5,label='7500')
         elif bytes == '4000':
             self.byte_menu.entryconfigure(0, label='1000')
             self.byte_menu.entryconfigure(1, label='2000')
             self.byte_menu.entryconfigure(2, label='3000')
             self.byte_menu.entryconfigure(3, label='✓ 4000')
             self.byte_menu.entryconfigure(4,label='5000')
+            self.byte_menu.entryconfigure(5,label='7500')
         elif bytes == '5000':
             self.byte_menu.entryconfigure(0, label='1000')
             self.byte_menu.entryconfigure(1, label='2000')
             self.byte_menu.entryconfigure(2, label='3000')
             self.byte_menu.entryconfigure(3, label='4000')
             self.byte_menu.entryconfigure(4,label='✓ 5000')
+            self.byte_menu.entryconfigure(5,label='7500')
+        elif bytes == '7500':
+            self.byte_menu.entryconfigure(0, label='1000')
+            self.byte_menu.entryconfigure(1, label='2000')
+            self.byte_menu.entryconfigure(2, label='3000')
+            self.byte_menu.entryconfigure(3, label='4000')
+            self.byte_menu.entryconfigure(4,label='5000')
+            self.byte_menu.entryconfigure(5,label='✓ 7500')
+
 
 
     def show_frame(self, cont):
