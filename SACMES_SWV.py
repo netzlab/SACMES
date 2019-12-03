@@ -115,8 +115,9 @@ current_column_index = 3
                               # defauly column is the second (so index = 1)
 voltage_column = 1
 voltage_column_index = 0
-
 spacing_index = 3
+
+byte_limit = 3000
 
 ######################################################
 ### Low frequency baseline manipulation Parameters ###
@@ -366,8 +367,16 @@ class MainWindow(tk.Tk):
         self.extension_value = IntVar()
         self.extension_value.set(1)
 
-        menubar.add_cascade(label="Settings", menu=editmenu)
+        self.byte_menu = tk.Menu(menubar)
+        self.onethousand = self.byte_menu.add_command(label = "   1000", command = lambda: self.set_bytes('1000'))
+        self.twothousand = self.byte_menu.add_command(label = "   2000", command = lambda: self.set_bytes('2000'))
+        self.threethousand = self.byte_menu.add_command(label="✓ 3000", command = lambda: self.set_bytes('3000'))
+        self.fourthousand = self.byte_menu.add_command(label = "   4000", command = lambda: self.set_bytes('4000'))
+        self.fivethousand = self.byte_menu.add_command(label = "   5000", command = lambda: self.set_bytes('5000'))
 
+        editmenu.add_cascade(label='Byte Limit', menu=self.byte_menu)
+
+        menubar.add_cascade(label="Settings", menu=editmenu)
 
     def extraction_adjustment_frame(self):
         global delimiter, extension
@@ -472,6 +481,42 @@ class MainWindow(tk.Tk):
         ### Set the delimiter and extension ###
         delimiter = self.delimiter_value.get()
         extension = self.extension_value.get()
+
+    def set_bytes(self, bytes):
+        global byte_liimt
+
+        byte_limit = int(bytes)
+        print("Byte Limit:",byte_limit)
+        if bytes == '1000':
+            self.byte_menu.entryconfigure(0, label='✓ 1000')
+            self.byte_menu.entryconfigure(1, label='2000')
+            self.byte_menu.entryconfigure(2, label='3000')
+            self.byte_menu.entryconfigure(3, label='4000')
+            self.byte_menu.entryconfigure(4,label='5000')
+        elif bytes == '2000':
+            self.byte_menu.entryconfigure(0, label='1000')
+            self.byte_menu.entryconfigure(1, label='✓ 2000')
+            self.byte_menu.entryconfigure(2, label='3000')
+            self.byte_menu.entryconfigure(3, label='4000')
+            self.byte_menu.entryconfigure(4,label='5000')
+        elif bytes == '3000':
+            self.byte_menu.entryconfigure(0, label='1000')
+            self.byte_menu.entryconfigure(1, label='2000')
+            self.byte_menu.entryconfigure(2, label='✓ 3000')
+            self.byte_menu.entryconfigure(3, label='4000')
+            self.byte_menu.entryconfigure(4,label='5000')
+        elif bytes == '4000':
+            self.byte_menu.entryconfigure(0, label='1000')
+            self.byte_menu.entryconfigure(1, label='2000')
+            self.byte_menu.entryconfigure(2, label='3000')
+            self.byte_menu.entryconfigure(3, label='✓ 4000')
+            self.byte_menu.entryconfigure(4,label='5000')
+        elif bytes == '5000':
+            self.byte_menu.entryconfigure(0, label='1000')
+            self.byte_menu.entryconfigure(1, label='2000')
+            self.byte_menu.entryconfigure(2, label='3000')
+            self.byte_menu.entryconfigure(3, label='4000')
+            self.byte_menu.entryconfigure(4,label='✓ 5000')
 
 
     def show_frame(self, cont):
@@ -1270,7 +1315,7 @@ class CheckPoint():
                                     mydata_bytes = 1
 
 
-                    if mydata_bytes > 1000:
+                    if mydata_bytes > byte_limit:
 
                         if e_var == 'single':
                             check_ = self.verify_multi(myfile)
@@ -1342,7 +1387,7 @@ class CheckPoint():
                                     except:
                                         mydata_bytes = 1
 
-                if mydata_bytes > 1000:
+                if mydata_bytes > byte_limit:
 
                     if e_var == 'single':
                         check_ = self.verify_multi(myfile)
@@ -1379,7 +1424,18 @@ class CheckPoint():
         # changing the column index
         #---Set the electrode index value---#
         check_ = False
-        with open(myfile,'r',encoding='utf-8') as mydata:
+        try:
+            #---Preallocate Potential and Current lists---#
+            with open(myfile,'r',encoding='utf-16') as mydata:
+                encoding = 'utf-16'
+
+        except:
+            #---Preallocate Potential and Current lists---#
+            with open(myfile,'r',encoding='utf-8') as mydata:
+                encoding = 'utf-8'
+
+        with open(myfile,'r',encoding=encoding) as mydata:
+
             for line in mydata:
                 check_split_list = line.split(delimiter)
                 # delete any spaces that may come before the first value #
@@ -2747,7 +2803,7 @@ class InitializeContinuousCanvas():
                         except:
                             mydata_bytes = 1
 
-            if mydata_bytes > 1000:
+            if mydata_bytes > byte_limit:
                 print('Found File %s' % myfile)
                 self.RunInitialization(myfile,ax,subplot_count, electrode, frequency)
 
@@ -3109,7 +3165,7 @@ class InitializeFrequencyMapCanvas():
                                 except:
                                     mydata_bytes = 1
 
-            if mydata_bytes > 1000:
+            if mydata_bytes > byte_limit:
                 print('Found File %s' % myfile)
                 self.RunInitialization(myfile,ax,electrode)
 
@@ -3647,7 +3703,7 @@ class ElectrochemicalAnimation():
                                     mydata_bytes = 1
 
 
-        if mydata_bytes > 1000:
+        if mydata_bytes > byte_limit:
             print('%s%d: Queueing %s' % (self.spacer,self.electrode,filename))
             q.put(lambda: self._run_analysis(myfile,frequency))
 
