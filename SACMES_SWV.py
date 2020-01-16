@@ -1416,8 +1416,6 @@ class CheckPoint():
         with open(myfile,'r',encoding=encoding) as mydata:
 
             for line in mydata:
-                check_split_list = line.split(delimiter)
-                print(check_split_list)
                 # delete any spaces that may come before the first value #
                 while True:
                     if check_split_list[0] == '':
