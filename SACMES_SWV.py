@@ -117,7 +117,11 @@ voltage_column = 1
 voltage_column_index = 0
 spacing_index = 3
 
+#-- set the initial limit in bytes to filter out preinitialized files < 3000b
 byte_limit = 3000
+#- set the initial bite index to match the checkbutton
+#- index in the toolbar menu MainWindow.byte_menu
+byte_index = 2
 
 ######################################################
 ### Low frequency baseline manipulation Parameters ###
@@ -368,12 +372,12 @@ class MainWindow(tk.Tk):
         self.extension_value.set(1)
 
         self.byte_menu = tk.Menu(menubar)
-        self.onethousand = self.byte_menu.add_command(label = "   1000", command = lambda: self.set_bytes('1000'))
-        self.twothousand = self.byte_menu.add_command(label = "   2000", command = lambda: self.set_bytes('2000'))
-        self.threethousand = self.byte_menu.add_command(label="✓ 3000", command = lambda: self.set_bytes('3000'))
-        self.fourthousand = self.byte_menu.add_command(label = "   4000", command = lambda: self.set_bytes('4000'))
-        self.fivethousand = self.byte_menu.add_command(label = "   5000", command = lambda: self.set_bytes('5000'))
-        self.fivethousand = self.byte_menu.add_command(label = "   7500", command = lambda: self.set_bytes('7500'))
+        self.onethousand = self.byte_menu.add_command(label = "   1000", command = lambda: self.set_bytes('1000',0))
+        self.twothousand = self.byte_menu.add_command(label = "   2000", command = lambda: self.set_bytes('2000',1))
+        self.threethousand = self.byte_menu.add_command(label="✓ 3000", command = lambda: self.set_bytes('3000',2))
+        self.fourthousand = self.byte_menu.add_command(label = "   4000", command = lambda: self.set_bytes('4000',3))
+        self.fivethousand = self.byte_menu.add_command(label = "   5000", command = lambda: self.set_bytes('5000',4))
+        self.fivethousand = self.byte_menu.add_command(label = "   7500", command = lambda: self.set_bytes('7500',5))
 
         editmenu.add_cascade(label='Byte Limit', menu=self.byte_menu)
 
@@ -483,54 +487,16 @@ class MainWindow(tk.Tk):
         delimiter = self.delimiter_value.get()
         extension = self.extension_value.get()
 
-    def set_bytes(self, bytes):
-        global byte_liimt
+    def set_bytes(self, bytes, index):
+        global byte_limit, byte_index
 
+        #-- reset the self.byte_menu widgets --#
+        self.byte_menu.entryconfigure(index, label='✓%s' % bytes)
+        self.byte_menu.entryconfigure(byte_index, label='   %s' % str(byte_limit))
+
+        #-- now change the current data being used --#
         byte_limit = int(bytes)
-        print("Byte Limit:",byte_limit)
-        if bytes == '1000':
-            self.byte_menu.entryconfigure(0, label='✓ 1000')
-            self.byte_menu.entryconfigure(1, label='2000')
-            self.byte_menu.entryconfigure(2, label='3000')
-            self.byte_menu.entryconfigure(3, label='4000')
-            self.byte_menu.entryconfigure(4,label='5000')
-            self.byte_menu.entryconfigure(5,label='7500')
-        elif bytes == '2000':
-            self.byte_menu.entryconfigure(0, label='1000')
-            self.byte_menu.entryconfigure(1, label='✓ 2000')
-            self.byte_menu.entryconfigure(2, label='3000')
-            self.byte_menu.entryconfigure(3, label='4000')
-            self.byte_menu.entryconfigure(4,label='5000')
-            self.byte_menu.entryconfigure(5,label='7500')
-        elif bytes == '3000':
-            self.byte_menu.entryconfigure(0, label='1000')
-            self.byte_menu.entryconfigure(1, label='2000')
-            self.byte_menu.entryconfigure(2, label='✓ 3000')
-            self.byte_menu.entryconfigure(3, label='4000')
-            self.byte_menu.entryconfigure(4,label='5000')
-            self.byte_menu.entryconfigure(5,label='7500')
-        elif bytes == '4000':
-            self.byte_menu.entryconfigure(0, label='1000')
-            self.byte_menu.entryconfigure(1, label='2000')
-            self.byte_menu.entryconfigure(2, label='3000')
-            self.byte_menu.entryconfigure(3, label='✓ 4000')
-            self.byte_menu.entryconfigure(4,label='5000')
-            self.byte_menu.entryconfigure(5,label='7500')
-        elif bytes == '5000':
-            self.byte_menu.entryconfigure(0, label='1000')
-            self.byte_menu.entryconfigure(1, label='2000')
-            self.byte_menu.entryconfigure(2, label='3000')
-            self.byte_menu.entryconfigure(3, label='4000')
-            self.byte_menu.entryconfigure(4,label='✓ 5000')
-            self.byte_menu.entryconfigure(5,label='7500')
-        elif bytes == '7500':
-            self.byte_menu.entryconfigure(0, label='1000')
-            self.byte_menu.entryconfigure(1, label='2000')
-            self.byte_menu.entryconfigure(2, label='3000')
-            self.byte_menu.entryconfigure(3, label='4000')
-            self.byte_menu.entryconfigure(4,label='5000')
-            self.byte_menu.entryconfigure(5,label='✓ 7500')
-
+        byte_index = index
 
 
     def show_frame(self, cont):
@@ -957,7 +923,7 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
 
     def FindFile(self, parent):
-        global FilePath, ExportPath, FoundFilePath, NoSelectedPath, DataFolder
+        global FilePath, ExportPath, FoundFilePath, DataFolder
 
         try:
 
@@ -965,7 +931,6 @@ class InputFrame(tk.Frame):                         # first frame that is displa
             ### directory for  data analysis ###
             FilePath = filedialog.askdirectory(parent = parent)
             FilePath = ''.join(FilePath + '/')
-
 
             ### Path for directory in which the    ###
             ### exported .txt file will be placed  ###
@@ -976,8 +941,6 @@ class InputFrame(tk.Frame):                         # first frame that is displa
 
             self.SelectFilePath['style'] = 'On.TButton'
             self.SelectFilePath['text'] = DataFolder
-
-
 
             del ExportPath[-1]
             del ExportPath[-1]
@@ -1440,18 +1403,21 @@ class CheckPoint():
         check_ = False
         try:
             #---Preallocate Potential and Current lists---#
+            with open(myfile,'r',encoding='utf-8') as mydata:
+                encoding = 'utf-8'
+
+        except:
+
+            #---Preallocate Potential and Current lists---#
             with open(myfile,'r',encoding='utf-16') as mydata:
                 encoding = 'utf-16'
 
-        except:
-            #---Preallocate Potential and Current lists---#
-            with open(myfile,'r',encoding='utf-8') as mydata:
-                encoding = 'utf-8'
 
         with open(myfile,'r',encoding=encoding) as mydata:
 
             for line in mydata:
                 check_split_list = line.split(delimiter)
+                print(check_split_list)
                 # delete any spaces that may come before the first value #
                 while True:
                     if check_split_list[0] == '':
@@ -1468,6 +1434,7 @@ class CheckPoint():
 
                 check_split = check_split_list[0]
                 check_split = check_split.replace(',','')
+                print(check_split,type(check_split))
                 try:
                     check_split = float(check_split)
                     check_split = True
@@ -2034,7 +2001,7 @@ class ContinuousScanManipulationFrame(tk.Frame):
             for figure in figures:
                 fig, self.ax = figure
                 electrode = electrode_list[fig_count]
-                anim.append(ElectrochemicalAnimation(fig, self.ax, electrode, resize_interval = resize_interval, fargs=None))
+                anim.append(ElectrochemicalAnimation(fig, electrode, resize_interval = resize_interval, fargs=None))
                 fig_count += 1
 
             AlreadyInitiated = True
@@ -2318,7 +2285,7 @@ class FrequencyMapManipulationFrame(tk.Frame):
     ### Function to start returning visualized data ###
     ###################################################
     def SkeletonKey(self):
-        global key, PoisonPill, data_analysis, extrapolate, AlreadyInitiated
+        global key, PoisonPill, AlreadyInitiated
 
         if not AlreadyInitiated:
 
@@ -2329,7 +2296,7 @@ class FrequencyMapManipulationFrame(tk.Frame):
             for figure in figures:
                 fig, self.ax = figure
                 electrode = electrode_list[fig_count]
-                anim.append(ElectrochemicalAnimation(fig, self.ax, electrode, resize_interval = None, fargs=None))
+                anim.append(ElectrochemicalAnimation(fig, electrode, resize_interval = None, fargs=None))
                 fig_count += 1
 
             AlreadyInitiated = True
@@ -3334,14 +3301,13 @@ class InitializeFrequencyMapCanvas():
 
 
 class ElectrochemicalAnimation():
-    def __init__(self, fig, ax, electrode, generator = None, func = None, resize_interval = None, fargs = None):
+    def __init__(self, fig, electrode, generator = None, func = None, resize_interval = None, fargs = None):
 
         self.electrode = electrode                               # Electrode for this class instance
         self.num = electrode_dict[self.electrode]                # Electrode index value
         self.spacer = ''.join(['       ']*self.electrode)        # Spacer value for print statements
         self.file = starting_file                                # Starting File
         self.index = 0                                           # File Index Value
-        self.ax = ax                                             # Figure Axes object
         self.count = 0                                           # Frequency index value
         self.frequency_limit = len(frequency_list) - 1           # ' -1 ' so it matches the index value
 
@@ -4980,7 +4946,7 @@ class PostAnalysis(tk.Frame):
 
 
     def FindFile(self, parent):
-        global FilePath, ExportPath, FoundFilePath, NoSelectedPath
+        global FilePath, ExportPath, FoundFilePath
 
         try:
 
