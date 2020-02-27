@@ -85,7 +85,7 @@ PHE_method = 'Abs'      # default PHE Extraction is difference between absolute 
 ########################################
 ### Polynomial Regression Parameters ###
 ########################################
-sg_window = 5           ### Savitzky-Golay window (in mV range), must be odd number (increase signal:noise)
+sg_window = 1           ### Savitzky-Golay window (in mV range), must be odd number (increase signal:noise)
 sg_degree = 1           ### Savitzky-Golay polynomial degree
 polyfit_deg = 15        ### degree of polynomial fit
 
@@ -235,6 +235,36 @@ def ReadData(myfile, electrode):
         max_potential = max(potentials)
 
 
+        ################################
+        ### Savitzky-Golay smoothing ###
+        ################################
+        var = toggle_var.get()
+        if var:
+            sg_limit = sg_window/1000                  # mV --> V
+
+            # shift all values positive
+            sg_potentials = [x - min_potential for x in potentials]
+
+            # find how many points fit within the sg potential window
+            # this will be how many points are included in the rolling average
+            sg_range = len([x for x in sg_potentials if x <= sg_limit])
+
+            #--- Savitzky-golay Window must be greater than the range ---#
+            if sg_range <= sg_degree:
+                sg_range = sg_degree + 1
+
+            #-- if the range is even, make it odd --#
+            if sg_range % 2 == 0:
+                sg_range = sg_range + 1
+
+            # Apply the smoothing function and create a dictionary pairing
+            # each potential with its corresponding current
+            try:
+                currents = savgol_filter(currents, sg_range, sg_degree)
+            except ValueError:
+                currents = savgol_filter(currents, 15, sg_degree)
+
+
         ################################################################
         ### Determine the Number of Segments and Create a dictionary ###
         ### correlating the segments to their index values within    ###
@@ -255,7 +285,6 @@ def ReadData(myfile, electrode):
             initial_step = 'Negative'
         else:
             initial_step = 'Positive'
-
 
         #-- place the potentials and currents into dictionaries --#
         #-- correlated to their respective segment              --#
@@ -1690,7 +1719,7 @@ class SetupFrame(tk.Frame):
 class RealTimeManipulationFrame(tk.Frame):
 
     def __init__(self, parent):
-        global PlotValues, container, ShowFrames, FileLabel
+        global PlotValues, container, ShowFrames, FileLabel, toggle_var, ToggleSmoothing
 
         tk.Frame.__init__(self, parent, width=7)         # Initialize the frame
 
@@ -1706,10 +1735,38 @@ class RealTimeManipulationFrame(tk.Frame):
         FileLabel = ttk.Label(self, text = '1', font=LARGE_FONT, style='Fun.TButton')
         FileLabel.grid(row=1,column=0,padx=2,pady=5,sticky='nw')
 
+        #####################################################
+        ### Nested Frame for Real-Time adjustment         ###
+        ### of voltammogram and savitzky-golay Smoothing  ###
+        #####################################################
+
+        RegressionFrame = tk.Frame(self,relief='groove',bd=5)
+        RegressionFrame.grid(row=2,column=0,columnspan=4,pady=5,padx=5,ipadx=3, sticky='ns')
+        RegressionFrame.rowconfigure(0, weight=1)
+        RegressionFrame.rowconfigure(1, weight=1)
+        RegressionFrame.rowconfigure(2, weight=1)
+        RegressionFrame.columnconfigure(0, weight=1)
+        RegressionFrame.columnconfigure(1, weight=1)
+
+        ###################################################################
+        ### Real Time Manipulation of Savitzky-Golay Smoothing Function ###
+        ###################################################################
+        self.SmoothingLabel = tk.Label(RegressionFrame, text = 'Savitzky-Golay Window (mV)', font = LARGE_FONT)
+        self.SmoothingLabel.grid(row=1,column=0,columnspan=4,pady=1)
+        self.SmoothingEntry = tk.Entry(RegressionFrame, width=10)
+        self.SmoothingEntry.grid(row=2,column=0,columnspan=4,pady=3)
+        self.SmoothingEntry.insert(END, sg_window)
+
+        #--- Button to apply adjustments ---#
+        self.AdjustParameterButton = tk.Button(RegressionFrame, text = 'Apply Adjustments', font=LARGE_FONT, command = lambda: self.AdjustSmoothing())
+        self.AdjustParameterButton.grid(row=3,column=0,columnspan=4,pady=10,padx=10)
+
+        ToggleSmoothing = tk.Checkbutton(RegressionFrame, variable = toggle_var, onvalue = True, offvalue=False,text='toggle smoothing').grid(row=4,column=0,columnspan=4,pady=10)
+
         #---Buttons to switch between electrode frames---#
         frame_value = 0
         column_value = 0
-        row_value = 2
+        row_value = 3
         for Plot in PlotValues:
             Button = ttk.Button(self, text=frame_list[frame_value], command = lambda Plot=Plot: self.show_plot(Plot))
             Button.config(width=5)
@@ -1786,6 +1843,17 @@ class RealTimeManipulationFrame(tk.Frame):
 
         emptyMenu = Menu(root)
         root.config(menu=emptyMenu)
+
+
+    def AdjustSmoothing(self):
+        global sg_window
+
+        #######################################
+        ### Savitzky-Golay Smoothing Window ###
+        #######################################
+        sg_window = float(self.SmoothingEntry.get())
+        print('\n\n\nAdjustParamaters: SG_Window (mV) %d\n\n\n' % sg_window)
+
 
 
     ##########################################################
@@ -3470,6 +3538,9 @@ class ElectrochemicalAnimation():
             self.adjusted_potentials = [potential for potential in self.segment_potentials if low_voltage <= potential <= high_voltage]
             self.adjusted_index_list = [self.potential_dict[potential] for potential in self.adjusted_potentials]
             self.adjusted_currents = [currents[index] for index in self.adjusted_index_list]
+            print(len(self.adjusted_currents))
+
+            #-- create a data dicionary --#
             self.adjusted_data_dict = {}
             self.adjusted_index_list = {}
             for index in range(len(self.adjusted_potentials)):
@@ -4354,6 +4425,9 @@ if __name__ == '__main__':
 
     root = tk.Tk()
     app = MainWindow(root)
+
+    toggle_var = BooleanVar()
+    toggle_var.set(True)
 
     style = ttk.Style()
     style.configure('On.TButton', foreground = 'blue', font = LARGE_FONT, relief = 'raised', border = 100)
