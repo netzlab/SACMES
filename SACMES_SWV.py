@@ -1417,6 +1417,7 @@ class CheckPoint():
 
             for line in mydata:
                 # delete any spaces that may come before the first value #
+                check_split_list = line.split(delimiter)
                 while True:
                     if check_split_list[0] == '':
                         del check_split_list[0]
@@ -1432,7 +1433,6 @@ class CheckPoint():
 
                 check_split = check_split_list[0]
                 check_split = check_split.replace(',','')
-                print(check_split,type(check_split))
                 try:
                     check_split = float(check_split)
                     check_split = True
