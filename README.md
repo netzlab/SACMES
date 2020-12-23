@@ -24,3 +24,4 @@ SACMES_CV analyzes data from Cyclic Voltammgrams
 # SACMES_CA.py
 SACMES_CA analyzes data from Chronoamperograms
 
+© 2020 The Johns Hopkins University 
