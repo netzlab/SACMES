@@ -602,7 +602,10 @@ class InputFrame(tk.Frame):                         # first frame that is displa
         StartButton = ttk.Button(self, width=9, text='Initialize', command = lambda: self.InputFrameCheckpoint())
         StartButton.grid(row=18,column=2,columnspan=2, pady=10, padx=10)
 
-        for row in range(18):
+        copyright = tk.Label(self.master,text="© 2020 The Johns Hopkins University").grid(row=19,column=0,columnspan=2,sticky='ews',pady=15)
+
+
+        for row in range(19):
             row += 1
             self.rowconfigure(row, weight = 1)
 
@@ -996,7 +999,6 @@ class SetupFrame(tk.Frame):
         self.reverse = setup_dictionary['reverse']
         self.potential_dict = setup_dictionary['self.potential_dict']
         self.fig, self.ax = setup_dictionary['figure']
-
 
         self.max_voltage = max(self.potentials)
         self.min_voltage = min(self.potentials)
